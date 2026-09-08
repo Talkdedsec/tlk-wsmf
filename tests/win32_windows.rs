@@ -207,3 +207,30 @@ fn focus_can_be_handed_back_between_two_windows() {
         "focus should have gone back to the first window"
     );
 }
+
+#[test]
+fn the_system_answers_what_we_ask_it() {
+    // These are reads, not writes: no registry key is changed by running the tests.
+    let timeout = tlk_wsmf::system::foreground_lock_timeout();
+    assert!(
+        timeout.is_some(),
+        "Windows should report its foreground lock timeout"
+    );
+
+    // Either answer is correct; what matters is that it returns one rather than
+    // panicking on a missing registry value.
+    let _ = tlk_wsmf::system::dark_mode();
+    let _ = tlk_wsmf::system::autostart_enabled();
+}
+
+#[test]
+fn the_settings_path_is_written_the_way_a_person_would() {
+    let label = tlk_wsmf::config::config_path_label();
+    assert!(label.ends_with("config.toml"));
+    if std::env::var("APPDATA").is_ok() {
+        assert!(
+            label.starts_with("%APPDATA%"),
+            "the roaming folder should be shortened, got {label:?}"
+        );
+    }
+}

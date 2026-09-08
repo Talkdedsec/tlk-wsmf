@@ -4,7 +4,7 @@ use crate::journal::Journal;
 use crate::window::WindowInfo;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::time::{Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Accessibility::HWINEVENTHOOK;
 
@@ -101,7 +101,7 @@ impl App {
 
     /// True while the same process is still mid-launch after a restore.
     pub fn settling(&self, pid: u32) -> bool {
-        const SETTLE: std::time::Duration = std::time::Duration::from_millis(400);
+        const SETTLE: Duration = Duration::from_millis(400);
         self.last_restore
             .is_some_and(|(last, at)| last == pid && at.elapsed() < SETTLE)
     }
@@ -112,7 +112,7 @@ impl App {
     }
 
     pub fn strikes_for(&mut self, exe: &str) -> u32 {
-        let window = std::time::Duration::from_secs(self.cfg.restore_window_secs);
+        let window = Duration::from_secs(self.cfg.restore_window_secs);
         match self.strikes.get(exe) {
             Some(strike) if strike.since.elapsed() < window => strike.count,
             _ => {
@@ -123,7 +123,7 @@ impl App {
     }
 
     pub fn add_strike(&mut self, exe: &str) {
-        let window = std::time::Duration::from_secs(self.cfg.restore_window_secs);
+        let window = Duration::from_secs(self.cfg.restore_window_secs);
         match self.strikes.get_mut(exe) {
             Some(strike) if strike.since.elapsed() < window => strike.count += 1,
             _ => {
@@ -136,5 +136,75 @@ impl App {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use std::thread::sleep;
+
+    fn app() -> App {
+        App::new(Config {
+            restore_window_secs: 1,
+            log_to_file: false,
+            ..Config::default()
+        })
+    }
+
+    #[test]
+    fn an_application_starts_with_a_clean_sheet() {
+        let mut app = app();
+        assert_eq!(app.strikes_for("updater.exe"), 0);
+    }
+
+    #[test]
+    fn strikes_are_counted_per_application() {
+        let mut app = app();
+        app.add_strike("updater.exe");
+        app.add_strike("updater.exe");
+        assert_eq!(app.strikes_for("updater.exe"), 2);
+        assert_eq!(app.strikes_for("teams.exe"), 0);
+    }
+
+    #[test]
+    fn strikes_expire_so_yesterdays_offender_is_not_punished_today() {
+        let mut app = app();
+        app.add_strike("updater.exe");
+        assert_eq!(app.strikes_for("updater.exe"), 1);
+        sleep(Duration::from_millis(1_100));
+        assert_eq!(app.strikes_for("updater.exe"), 0);
+    }
+
+    #[test]
+    fn a_window_from_the_process_we_just_answered_is_still_settling() {
+        let mut app = app();
+        app.last_restore = Some((4242, Instant::now()));
+        assert!(app.settling(4242));
+        assert!(!app.settling(99), "a different process is a fresh event");
+    }
+
+    #[test]
+    fn settling_wears_off() {
+        let mut app = app();
+        app.last_restore = Some((4242, Instant::now() - Duration::from_millis(500)));
+        assert!(!app.settling(4242));
+    }
+
+    #[test]
+    fn nothing_is_settling_before_the_first_restore() {
+        let app = app();
+        assert!(!app.settling(4242));
+    }
+
+    #[test]
+    fn a_pause_ends_by_itself() {
+        let mut app = app();
+        assert!(!app.is_paused());
+        app.paused_until = Some(Instant::now() + Duration::from_secs(60));
+        assert!(app.is_paused());
+        app.paused_until = Some(Instant::now() - Duration::from_secs(1));
+        assert!(!app.is_paused(), "a pause in the past is not a pause");
     }
 }
