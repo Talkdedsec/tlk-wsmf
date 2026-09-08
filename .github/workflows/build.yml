@@ -75,7 +75,7 @@ jobs:
           (Get-FileHash wsmf.exe -Algorithm SHA256).Hash | Out-File -Encoding ascii wsmf.exe.sha256
           Get-Content wsmf.exe.sha256
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: |
             target/release/wsmf.exe
