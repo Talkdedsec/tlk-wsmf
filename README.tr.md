@@ -1,3 +1,5 @@
+![Who Stole My Focus](assets/banner.png)
+
 # Who Stole My Focus
 
 Yazıyorsunuz. İstemediğiniz bir pencere öne fırlıyor ve sonraki birkaç tuşu o yiyor.

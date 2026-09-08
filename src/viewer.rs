@@ -4,7 +4,7 @@
 
 use crate::app::{App, with_app};
 use crate::system;
-use crate::window::wide;
+use crate::window::{app_icon, wide};
 use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 use windows::Win32::Graphics::Dwm::{DWMWA_USE_IMMERSIVE_DARK_MODE, DwmSetWindowAttribute};
 use windows::Win32::Graphics::Gdi::{
@@ -90,6 +90,7 @@ fn create_window(title: &str) -> HWND {
             lpfnWndProc: Some(viewer_proc),
             hInstance: instance.into(),
             lpszClassName: PCWSTR(class.as_ptr()),
+            hIcon: app_icon(),
             hbrBackground: if dark {
                 CreateSolidBrush(COLORREF(DARK_BACKGROUND))
             } else {
