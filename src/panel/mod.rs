@@ -239,11 +239,28 @@ fn file_stamp(path: &std::path::Path) -> Option<SystemTime> {
     std::fs::metadata(path).ok()?.modified().ok()
 }
 
+/// `--size 1240x780`, so the screenshot tool can open the window at the size it
+/// wants rather than resizing it afterwards and catching a half drawn frame.
+fn requested_size() -> [f32; 2] {
+    const DEFAULT: [f32; 2] = [980.0, 620.0];
+    let mut args = std::env::args().skip_while(|arg| arg != "--size");
+    let Some(value) = args.nth(1) else {
+        return DEFAULT;
+    };
+    let Some((width, height)) = value.split_once(['x', 'X']) else {
+        return DEFAULT;
+    };
+    match (width.trim().parse(), height.trim().parse()) {
+        (Ok(w), Ok(h)) if (400.0..=4000.0).contains(&w) && (300.0..=4000.0).contains(&h) => [w, h],
+        _ => DEFAULT,
+    }
+}
+
 pub fn run() -> Result<(), eframe::Error> {
     let icon = load_icon();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([980.0, 620.0])
+            .with_inner_size(requested_size())
             .with_min_inner_size([720.0, 480.0])
             .with_title("Who Stole My Focus")
             .with_icon(icon),
