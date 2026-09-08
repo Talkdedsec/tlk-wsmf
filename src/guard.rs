@@ -1,6 +1,6 @@
 use crate::app::{App, with_app};
 use crate::input::ms_since_any_input;
-use crate::journal::{Entry, Verdict};
+use crate::journal::{Entry, Reason, Verdict};
 use crate::policy::{Situation, decide};
 use crate::window::WindowInfo;
 use chrono::Local;
@@ -67,7 +67,7 @@ impl App {
         let previous_alive = self
             .previous
             .as_ref()
-            .is_some_and(|prev| prev.still_alive() && prev.hwnd != hwnd);
+            .is_some_and(|prev| prev.can_take_focus() && prev.hwnd != hwnd);
         let same_process = self
             .previous
             .as_ref()
@@ -130,7 +130,7 @@ impl App {
                 reason: if handed_back {
                     call.reason
                 } else {
-                    "could not take it back"
+                    Reason::Failed
                 },
             });
         } else {
@@ -166,7 +166,7 @@ impl App {
 /// SetForegroundWindow fails by design unless the calling thread owns the foreground.
 /// Borrowing the current foreground thread's input queue is the documented way around
 /// it, and the same trick every window manager on Windows ends up using.
-fn force_foreground(target: HWND) -> bool {
+pub fn force_foreground(target: HWND) -> bool {
     unsafe {
         let foreground = GetForegroundWindow();
         let foreign = GetWindowThreadProcessId(foreground, None);

@@ -3,10 +3,12 @@
 You are typing. A window you did not ask for jumps in front and eats the next few
 keystrokes. By the time you notice, half a sentence went somewhere else.
 
-This is a small Windows tray program that answers two questions: **which application
-did that**, and, if you want, **stops it from doing it again**.
+This is a Windows tray program that answers two questions: **which application did
+that**, and, if you want, **stops it from doing it again**.
 
 [Türkçe](README.tr.md)
+
+![The panel](assets/panel-activity.png)
 
 ## Why this exists
 
@@ -20,7 +22,7 @@ party tool most people find is either abandoned or flagged by Defender.
 
 ## What it does
 
-Three modes, switched from the tray icon:
+Three modes, switched from the tray icon or the panel:
 
 - **Watch only** (default) — never touches your windows. Records every application
   that took your focus, when, and what its window was called. Start here.
@@ -31,8 +33,22 @@ Three modes, switched from the tray icon:
 When it takes focus back it flashes the interrupting window in the taskbar, the same
 way Windows does when it blocks a window itself. Nothing is lost. It just waits.
 
-Right-click any line in the log to block that application, always allow it, or open
-its folder to find out what it actually is.
+## Two windows
+
+**The quick view** opens on a single click of the tray icon: a plain list of what
+just happened, nothing else. It is a Win32 list, so it is on screen instantly.
+
+**The panel** (double click, or "Open the panel") is a separate process with four
+tabs — activity, rules, statistics, settings. Because it is its own process, the
+part of the program guarding your focus stays small and keeps running even if the
+panel is closed, busy, or crashes.
+
+| | |
+|---|---|
+| ![Statistics](assets/panel-stats.png) | ![Rules](assets/panel-rules.png) |
+
+Both are in English or Turkish, following the Windows display language unless you
+pick one yourself.
 
 ## Install
 
@@ -55,12 +71,16 @@ problem, so the benefit of the doubt always goes to you:
 | Alt+Tab or the Windows key is held | Left alone |
 | Same application as the window you were in | Left alone |
 | On your allow list | Left alone |
+| The window you were in has closed or been minimised | Recorded, nowhere to go back to |
 | A key was pressed in the last 1.5 s and none of the above | You were typing: this is a theft |
 | On your block list | A theft, whatever you were doing |
 
 If an application keeps grabbing focus, it wins after three tries in ten seconds.
 Two programs fighting over the foreground is worse for you than one badly behaved
 program, so this one stops and says so in the log.
+
+Every row in that table is a unit test. If you disagree with a decision, turn on
+`record_everything` and the log will tell you which row it matched.
 
 ## What it does not do
 
@@ -77,16 +97,17 @@ program, so this one stops and says so in the log.
 Reading foreground changes and moving focus is what this program is for, and it is
 also what some malware does, so a heuristic engine may take an interest. Releases are
 built by GitHub Actions from the tag they claim to be built from, and the workflow is
-in this repository. If your scanner still flags it, the whole thing is about a
+in this repository. If your scanner still flags it, the whole thing is about two
 thousand lines of Rust and you can read all of it.
 
 ## Settings
 
-The tray menu covers everything most people need. The rest lives in
-`%APPDATA%\wsmf\config.toml`:
+The panel covers everything. The same values live in `%APPDATA%\wsmf\config.toml`,
+and editing that file by hand works too — the running copy notices within a second:
 
 ```toml
 mode = "watch"              # watch, guard, strict
+language = "system"         # system, english, turkish
 typing_window_ms = 1500     # a keystroke this recent means you were typing
 click_grace_ms = 400        # a click this recent means you opened it yourself
 blocklist = []              # exe names, lower case, no path
@@ -98,19 +119,43 @@ log_to_file = true          # %APPDATA%\wsmf\focus.log
 record_everything = false   # also record what was left alone, and why
 ```
 
-`record_everything` is the one to turn on when you disagree with a decision: it
-writes down every focus change together with the reason it was allowed.
+The log is tab separated, with untranslated keys, so it stays readable by anything
+and survives a change of language:
+
+```
+2026-09-08T00:16:11+03:00	restored	blocklist	mspaint.exe	C:\Windows\system32\mspaint.exe	Paint
+2026-09-08T00:16:15+03:00	gave_up	persistent	mspaint.exe	C:\Windows\system32\mspaint.exe	Paint
+```
 
 ## Build
 
 ```
 cargo build --release
+cargo test --release
 ```
 
-Rust 1.85 or newer, MSVC toolchain. No other dependencies. The result is a single
-420 KB executable at `target\release\wsmf.exe`.
+Rust 1.85 or newer, MSVC toolchain. The result is a single executable at
+`target\release\wsmf.exe`.
 
-`cargo test` runs the decision table above as unit tests.
+## Tests
+
+`cargo test --release` runs four kinds of test:
+
+- **Decisions** — the table above, one test per row, plus the edges either side of
+  each threshold.
+- **Files** — settings round trip, a broken config kept aside rather than
+  overwritten, absurd numbers pulled back into range, log lines surviving tabs and
+  newlines in window titles, and a log line written by a future version not breaking
+  this one.
+- **Windows** — real windows created and destroyed inside the test: what a window
+  reports about itself, that hidden, minimised and destroyed windows are never handed
+  focus, and that focus really can be moved between two windows.
+- **Budget** — a decision must cost under 2 µs even with a thousand rules loaded, the
+  tray process must start in under 3 seconds, hold under 48 MB, and use under 0.35 s
+  of CPU across six idle seconds. A second launch must exit rather than leave two
+  copies running.
+
+The budget tests are why the claim "small and light" is in this README at all.
 
 ## Licence
 

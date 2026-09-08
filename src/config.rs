@@ -1,32 +1,45 @@
+use crate::i18n::{Language, Strings};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Mode {
     /// Never takes focus back. Only records who took it.
     Watch,
-    /// Takes focus back while you are typing, and from anything on the blocklist.
+    /// Takes focus back while you are typing, and from anything on the block list.
     Guard,
-    /// Takes focus back from everything that is not on the allowlist.
+    /// Takes focus back from everything that is not on the allow list.
     Strict,
 }
 
 impl Mode {
-    pub fn label(self) -> &'static str {
+    pub fn label(self, s: &'static Strings) -> &'static str {
         match self {
-            Mode::Watch => "Watch only",
-            Mode::Guard => "Guard",
-            Mode::Strict => "Strict",
+            Mode::Watch => s.mode_watch,
+            Mode::Guard => s.mode_guard,
+            Mode::Strict => s.mode_strict,
         }
     }
+
+    pub fn hint(self, s: &'static Strings) -> &'static str {
+        match self {
+            Mode::Watch => s.mode_watch_hint,
+            Mode::Guard => s.mode_guard_hint,
+            Mode::Strict => s.mode_strict_hint,
+        }
+    }
+
+    pub const ALL: [Mode; 3] = [Mode::Watch, Mode::Guard, Mode::Strict];
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub mode: Mode,
+    pub language: Language,
     /// A focus change this soon after any input, with no click, means you were typing.
     pub typing_window_ms: u64,
     /// A click this recent means you opened the window yourself. Never fight the user.
@@ -54,18 +67,21 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             mode: Mode::Watch,
+            language: Language::System,
             typing_window_ms: 1500,
             click_grace_ms: 400,
             blocklist: Vec::new(),
+            // Sorted, because normalize() sorts, and a config that reorders itself
+            // on first read looks like something went wrong.
             allowlist: vec![
-                "explorer.exe".into(),
                 "applicationframehost.exe".into(),
-                "shellexperiencehost.exe".into(),
-                "searchhost.exe".into(),
-                "startmenuexperiencehost.exe".into(),
-                "lockapp.exe".into(),
                 "consent.exe".into(),
                 "credentialuibroker.exe".into(),
+                "explorer.exe".into(),
+                "lockapp.exe".into(),
+                "searchhost.exe".into(),
+                "shellexperiencehost.exe".into(),
+                "startmenuexperiencehost.exe".into(),
                 "wsmf.exe".into(),
             ],
             flash_thief: true,
@@ -81,10 +97,13 @@ impl Default for Config {
 
 impl Config {
     pub fn load() -> Self {
-        let path = config_path();
-        let Ok(text) = fs::read_to_string(&path) else {
+        Self::load_from(&config_path())
+    }
+
+    pub fn load_from(path: &Path) -> Self {
+        let Ok(text) = fs::read_to_string(path) else {
             let fresh = Config::default();
-            let _ = fresh.save();
+            let _ = fresh.save_to(path);
             return fresh;
         };
         match toml::from_str::<Config>(&text) {
@@ -93,23 +112,30 @@ impl Config {
                 cfg
             }
             Err(_) => {
-                let backup = path.with_extension("toml.broken");
-                let _ = fs::rename(&path, backup);
+                // Keep whatever the user had; they may have meant something by it.
+                let _ = fs::rename(path, path.with_extension("toml.broken"));
                 let fresh = Config::default();
-                let _ = fresh.save();
+                let _ = fresh.save_to(path);
                 fresh
             }
         }
     }
 
     pub fn save(&self) -> std::io::Result<()> {
-        let path = config_path();
+        self.save_to(&config_path())
+    }
+
+    pub fn save_to(&self, path: &Path) -> std::io::Result<()> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
         let text = toml::to_string_pretty(self)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         fs::write(path, text)
+    }
+
+    pub fn strings(&self) -> &'static Strings {
+        self.language.strings()
     }
 
     fn normalize(&mut self) {
@@ -137,30 +163,33 @@ impl Config {
     }
 
     pub fn block(&mut self, exe: &str) {
-        let exe = exe.to_ascii_lowercase();
+        let exe = exe.trim().to_ascii_lowercase();
+        if exe.is_empty() {
+            return;
+        }
         self.allowlist.retain(|n| *n != exe);
         if !self.blocklist.contains(&exe) {
             self.blocklist.push(exe);
             self.blocklist.sort();
         }
-        let _ = self.save();
     }
 
     pub fn allow(&mut self, exe: &str) {
-        let exe = exe.to_ascii_lowercase();
+        let exe = exe.trim().to_ascii_lowercase();
+        if exe.is_empty() {
+            return;
+        }
         self.blocklist.retain(|n| *n != exe);
         if !self.allowlist.contains(&exe) {
             self.allowlist.push(exe);
             self.allowlist.sort();
         }
-        let _ = self.save();
     }
 
     pub fn forget(&mut self, exe: &str) {
-        let exe = exe.to_ascii_lowercase();
+        let exe = exe.trim().to_ascii_lowercase();
         self.blocklist.retain(|n| *n != exe);
         self.allowlist.retain(|n| *n != exe);
-        let _ = self.save();
     }
 }
 
@@ -177,4 +206,135 @@ pub fn config_path() -> PathBuf {
 
 pub fn log_path() -> PathBuf {
     data_dir().join("focus.log")
+}
+
+/// When the settings file last changed, so the running copy can pick up an edit
+/// made in the panel, or in a text editor, without being restarted.
+pub fn changed_at() -> Option<SystemTime> {
+    fs::metadata(config_path()).ok()?.modified().ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("wsmf-test-{name}-{}", std::process::id()));
+        let _ = fs::create_dir_all(&dir);
+        dir.join("config.toml")
+    }
+
+    #[test]
+    fn a_saved_config_reads_back_the_same() {
+        let path = scratch("roundtrip");
+        let mut original = Config {
+            mode: Mode::Guard,
+            language: Language::Turkish,
+            ..Config::default()
+        };
+        original.block("teams.exe");
+        original.save_to(&path).unwrap();
+
+        let loaded = Config::load_from(&path);
+        assert_eq!(loaded, original);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn a_missing_file_gives_defaults_and_writes_one() {
+        let path = scratch("missing");
+        let _ = fs::remove_file(&path);
+        let cfg = Config::load_from(&path);
+        assert_eq!(cfg.mode, Mode::Watch);
+        assert!(path.exists(), "a fresh config should be written out");
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn a_broken_file_is_kept_aside_rather_than_overwritten() {
+        let path = scratch("broken");
+        fs::write(&path, "this is not toml at all {{{").unwrap();
+        let cfg = Config::load_from(&path);
+        assert_eq!(cfg.mode, Mode::Watch);
+        let kept = path.with_extension("toml.broken");
+        assert!(kept.exists(), "the unreadable file should be preserved");
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(kept);
+    }
+
+    #[test]
+    fn a_partial_file_keeps_what_it_says_and_defaults_the_rest() {
+        let path = scratch("partial");
+        fs::write(&path, "mode = \"strict\"\n").unwrap();
+        let cfg = Config::load_from(&path);
+        assert_eq!(cfg.mode, Mode::Strict);
+        assert_eq!(cfg.typing_window_ms, Config::default().typing_window_ms);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn absurd_numbers_are_pulled_back_into_range() {
+        let path = scratch("clamp");
+        fs::write(
+            &path,
+            "typing_window_ms = 999999999\nclick_grace_ms = 0\nmax_restores = 0\nrestore_window_secs = 100000\n",
+        )
+        .unwrap();
+        let cfg = Config::load_from(&path);
+        assert_eq!(cfg.typing_window_ms, 30_000);
+        assert_eq!(cfg.click_grace_ms, 50);
+        assert_eq!(cfg.max_restores, 1);
+        assert_eq!(cfg.restore_window_secs, 600);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn hand_written_names_are_tidied_up() {
+        let path = scratch("tidy");
+        fs::write(
+            &path,
+            "blocklist = [\"  Teams.EXE \", \"teams.exe\", \"\", \"  \"]\n",
+        )
+        .unwrap();
+        let cfg = Config::load_from(&path);
+        assert_eq!(cfg.blocklist, vec!["teams.exe"]);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn blocking_something_removes_it_from_the_allow_list() {
+        let mut cfg = Config::default();
+        cfg.allow("teams.exe");
+        cfg.block("teams.exe");
+        assert!(cfg.is_blocked("teams.exe"));
+        assert!(!cfg.is_allowed("teams.exe"));
+    }
+
+    #[test]
+    fn forgetting_takes_it_out_of_both() {
+        let mut cfg = Config::default();
+        cfg.block("teams.exe");
+        cfg.forget("teams.exe");
+        assert!(!cfg.is_blocked("teams.exe"));
+        assert!(!cfg.is_allowed("teams.exe"));
+    }
+
+    #[test]
+    fn adding_the_same_name_twice_does_not_duplicate_it() {
+        let mut cfg = Config::default();
+        cfg.block("Teams.exe");
+        cfg.block("teams.exe");
+        assert_eq!(
+            cfg.blocklist.iter().filter(|n| *n == "teams.exe").count(),
+            1
+        );
+    }
+
+    #[test]
+    fn an_empty_name_is_not_a_rule() {
+        let mut cfg = Config::default();
+        let before = cfg.blocklist.len();
+        cfg.block("   ");
+        assert_eq!(cfg.blocklist.len(), before);
+    }
 }

@@ -46,6 +46,35 @@ pub fn set_foreground_lock_timeout(ms: u32) -> bool {
     }
 }
 
+/// Whether Windows is currently in dark mode, so the quick view can match it.
+pub fn dark_mode() -> bool {
+    unsafe {
+        let mut key = HKEY::default();
+        if RegOpenKeyExW(
+            HKEY_CURRENT_USER,
+            PCWSTR(wide(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize").as_ptr()),
+            None,
+            KEY_READ,
+            &mut key,
+        ) != ERROR_SUCCESS
+        {
+            return false;
+        }
+        let mut value: u32 = 1;
+        let mut size = size_of::<u32>() as u32;
+        let read = RegQueryValueExW(
+            key,
+            PCWSTR(wide("AppsUseLightTheme").as_ptr()),
+            None,
+            None,
+            Some(&mut value as *mut u32 as *mut u8),
+            Some(&mut size),
+        );
+        let _ = RegCloseKey(key);
+        read == ERROR_SUCCESS && value == 0
+    }
+}
+
 pub fn autostart_enabled() -> bool {
     unsafe {
         let mut key = HKEY::default();

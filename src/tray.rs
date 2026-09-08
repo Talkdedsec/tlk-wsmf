@@ -21,28 +21,32 @@ pub const TRAY_ID: u32 = 1;
 pub const ID_MODE_WATCH: usize = 10;
 pub const ID_MODE_GUARD: usize = 11;
 pub const ID_MODE_STRICT: usize = 12;
-pub const ID_SHOW_LOG: usize = 20;
-pub const ID_OPEN_CONFIG: usize = 21;
+pub const ID_OPEN_PANEL: usize = 20;
+pub const ID_QUICK_VIEW: usize = 21;
+pub const ID_CLEAR_LOG: usize = 22;
 pub const ID_PAUSE: usize = 30;
 pub const ID_AUTOSTART: usize = 31;
 pub const ID_LOCK_TIMEOUT: usize = 32;
-pub const ID_CLEAR_LOG: usize = 22;
 pub const ID_QUIT: usize = 99;
 
 const PAUSE_MINUTES: u64 = 15;
 
 fn app_icon() -> HICON {
     unsafe {
-        LoadIconW(
-            Some(
-                windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
-                    .unwrap_or_default()
-                    .into(),
-            ),
-            PCWSTR(std::ptr::without_provenance(1)),
-        )
-        .or_else(|_| LoadIconW(None, IDI_APPLICATION))
-        .unwrap_or_default()
+        let module = windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
+            .unwrap_or_default()
+            .into();
+        LoadIconW(Some(module), PCWSTR(std::ptr::without_provenance(1)))
+            .or_else(|_| LoadIconW(None, IDI_APPLICATION))
+            .unwrap_or_default()
+    }
+}
+
+fn copy_into(target: &mut [u16], text: &str) {
+    let source: Vec<u16> = text.encode_utf16().take(target.len() - 1).collect();
+    target[..source.len()].copy_from_slice(&source);
+    if source.len() < target.len() {
+        target[source.len()] = 0;
     }
 }
 
@@ -91,33 +95,21 @@ pub fn say(hwnd: HWND, title: &str, body: &str) {
     }
 }
 
-fn copy_into(target: &mut [u16], text: &str) {
-    let source: Vec<u16> = text.encode_utf16().take(target.len() - 1).collect();
-    target[..source.len()].copy_from_slice(&source);
-}
-
 pub fn refresh_tooltip(app: &App) {
     if app.tray_window.is_invalid() {
         return;
     }
-    let caught = app.journal.thefts_today();
+    let s = app.cfg.strings();
+    let caught = app.journal.interruptions_today();
+    let mode = app.cfg.mode.label(s);
     let tip = if app.is_paused() {
-        "Who Stole My Focus - paused".to_string()
+        format!("{} - {}", s.app_name, s.tray_paused)
     } else if caught == 0 {
-        format!(
-            "Who Stole My Focus - {}, nothing caught today",
-            app.cfg.mode.label()
-        )
+        format!("{} - {mode}, {}", s.app_name, s.tray_caught_none)
     } else if caught == 1 {
-        format!(
-            "Who Stole My Focus - {}, 1 caught today",
-            app.cfg.mode.label()
-        )
+        format!("{} - {mode}, {}", s.app_name, s.tray_caught_one)
     } else {
-        format!(
-            "Who Stole My Focus - {}, {caught} caught today",
-            app.cfg.mode.label()
-        )
+        format!("{} - {mode}, {caught} {}", s.app_name, s.tray_caught_many)
     };
     let data = icon_data(app.tray_window, &tip);
     unsafe {
@@ -127,6 +119,7 @@ pub fn refresh_tooltip(app: &App) {
 
 pub fn show_menu(app: &mut App) {
     let hwnd = app.tray_window;
+    let s = app.cfg.strings();
     unsafe {
         let Ok(menu) = CreatePopupMenu() else {
             return;
@@ -134,10 +127,6 @@ pub fn show_menu(app: &mut App) {
         let item = |flags, id: usize, text: &str| {
             let _ = AppendMenuW(menu, flags, id, PCWSTR(wide(text).as_ptr()));
         };
-
-        item(MF_STRING | MF_GRAYED, 0, "Who Stole My Focus");
-        item(MF_SEPARATOR, 0, "");
-
         let checked = |on: bool| {
             if on {
                 MF_STRING | MF_CHECKED
@@ -145,57 +134,68 @@ pub fn show_menu(app: &mut App) {
                 MF_STRING
             }
         };
+
+        item(MF_STRING | MF_GRAYED, 0, s.app_name);
+        item(MF_SEPARATOR, 0, "");
+
         item(
             checked(app.cfg.mode == Mode::Watch),
             ID_MODE_WATCH,
-            "Watch only - just tell me who",
+            s.mode_watch,
         );
         item(
             checked(app.cfg.mode == Mode::Guard),
             ID_MODE_GUARD,
-            "Guard - take focus back while I type",
+            s.mode_guard,
         );
         item(
             checked(app.cfg.mode == Mode::Strict),
             ID_MODE_STRICT,
-            "Strict - take it back from everything",
+            s.mode_strict,
         );
         item(MF_SEPARATOR, 0, "");
 
-        let seen = app.journal.len();
+        item(MF_STRING, ID_OPEN_PANEL, s.tray_open_panel);
         item(
             MF_STRING,
-            ID_SHOW_LOG,
-            &format!("Show the log ({seen} recorded)"),
+            ID_QUICK_VIEW,
+            &format!("{} ({})", s.tray_quick_view, app.journal.len()),
         );
-        item(MF_STRING, ID_CLEAR_LOG, "Clear what has been recorded");
-        item(MF_STRING, ID_OPEN_CONFIG, "Open the settings file");
+        item(MF_STRING, ID_CLEAR_LOG, s.tray_clear);
         item(MF_SEPARATOR, 0, "");
 
         item(
             MF_STRING,
             ID_PAUSE,
             if app.is_paused() {
-                "Resume now"
+                s.tray_resume
             } else {
-                "Pause for 15 minutes"
+                s.tray_pause
             },
         );
         item(
             checked(system::autostart_enabled()),
             ID_AUTOSTART,
-            "Start with Windows",
+            s.settings_autostart,
         );
 
         let timeout = system::foreground_lock_timeout().unwrap_or(0);
-        let lock_label = if timeout >= app.cfg.foreground_lock_timeout_ms {
-            format!("Windows focus lock is on ({timeout} ms)")
-        } else {
-            format!("Turn the Windows focus lock back on (now {timeout} ms)")
-        };
-        item(MF_STRING, ID_LOCK_TIMEOUT, &lock_label);
+        let on = timeout >= app.cfg.foreground_lock_timeout_ms;
+        item(
+            checked(on),
+            ID_LOCK_TIMEOUT,
+            &format!(
+                "{} ({})",
+                s.settings_windows_lock,
+                if on {
+                    s.settings_windows_lock_on
+                } else {
+                    s.settings_windows_lock_off
+                }
+            ),
+        );
         item(MF_SEPARATOR, 0, "");
-        item(MF_STRING, ID_QUIT, "Quit");
+        item(MF_STRING, ID_QUIT, s.tray_quit);
 
         let mut point = POINT::default();
         let _ = GetCursorPos(&mut point);
@@ -219,13 +219,13 @@ pub fn handle_command(app: &mut App, id: usize) {
         ID_MODE_WATCH => set_mode(app, Mode::Watch),
         ID_MODE_GUARD => set_mode(app, Mode::Guard),
         ID_MODE_STRICT => set_mode(app, Mode::Strict),
-        ID_SHOW_LOG => crate::viewer::show(app),
+        ID_OPEN_PANEL => open_panel(),
+        ID_QUICK_VIEW => crate::viewer::show(app),
         ID_CLEAR_LOG => {
             app.journal.clear();
             crate::viewer::refresh(app);
             refresh_tooltip(app);
         }
-        ID_OPEN_CONFIG => open_in_shell(&crate::config::config_path().to_string_lossy()),
         ID_PAUSE => {
             app.paused_until = if app.is_paused() {
                 None
@@ -238,7 +238,7 @@ pub fn handle_command(app: &mut App, id: usize) {
             let now_on = system::autostart_enabled();
             if system::set_autostart(!now_on) {
                 app.cfg.start_with_windows = !now_on;
-                let _ = app.cfg.save();
+                app.save_config();
             }
         }
         ID_LOCK_TIMEOUT => {
@@ -256,28 +256,27 @@ pub fn handle_command(app: &mut App, id: usize) {
 
 fn set_mode(app: &mut App, mode: Mode) {
     app.cfg.mode = mode;
-    let _ = app.cfg.save();
+    app.save_config();
     refresh_tooltip(app);
 }
 
-pub fn open_in_shell(path: &str) {
-    unsafe {
-        windows::Win32::UI::Shell::ShellExecuteW(
-            None,
-            PCWSTR(wide("open").as_ptr()),
-            PCWSTR(wide(path).as_ptr()),
-            PCWSTR::null(),
-            PCWSTR::null(),
-            windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
-        );
-    }
+/// The panel is the same executable in a different mode. Running it as its own
+/// process keeps the part that guards your focus small and independent of the
+/// part that draws charts.
+pub fn open_panel() {
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    let _ = std::process::Command::new(exe).arg("--panel").spawn();
 }
 
 pub fn tray_message(app: &mut App, lparam: LPARAM) {
     const WM_LBUTTONUP: u32 = 0x0202;
+    const WM_LBUTTONDBLCLK: u32 = 0x0203;
     const WM_RBUTTONUP: u32 = 0x0205;
     match lparam.0 as u32 {
         WM_LBUTTONUP => crate::viewer::show(app),
+        WM_LBUTTONDBLCLK => open_panel(),
         WM_RBUTTONUP => show_menu(app),
         _ => {}
     }
