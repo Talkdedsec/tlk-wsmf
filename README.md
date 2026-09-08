@@ -101,8 +101,8 @@ Every row in that table is a unit test. If you disagree with a decision, turn on
 Reading foreground changes and moving focus is what this program is for, and it is
 also what some malware does, so a heuristic engine may take an interest. Releases are
 built by GitHub Actions from the tag they claim to be built from, and the workflow is
-in this repository. If your scanner still flags it, the whole thing is about two
-thousand lines of Rust and you can read all of it.
+in this repository. If your scanner still flags it, the whole thing is about four
+and a half thousand lines of Rust and you can read all of it.
 
 ## Settings
 
