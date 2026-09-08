@@ -8,10 +8,14 @@ use eframe::egui::{self, RichText, Ui};
 pub fn show(panel: &mut Panel, ui: &mut Ui) {
     ui.add_space(theme::GAP);
     egui::ScrollArea::vertical().show(ui, |ui| {
+        // Settings read better in a column than stretched across a wide window, so
+        // the column is capped and centred rather than pinned to the left edge.
+        const COLUMN: f32 = 820.0;
         ui.horizontal(|ui| {
-            ui.add_space(theme::MARGIN);
+            let room = ui.available_width() - theme::MARGIN * 2.0;
+            ui.add_space(theme::MARGIN + ((room - COLUMN) / 2.0).max(0.0));
             ui.vertical(|ui| {
-                ui.set_max_width((ui.available_width() - theme::MARGIN).min(820.0));
+                ui.set_max_width(room.min(COLUMN));
                 mode(panel, ui);
                 ui.add_space(theme::GAP);
                 timing(panel, ui);
