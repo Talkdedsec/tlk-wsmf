@@ -78,6 +78,10 @@ zaman sizin lehinize:
 | Son 1,5 sn içinde tuşa basılmış ve yukarıdakilerin hiçbiri yok | Yazıyordunuz: bu bir hırsızlık |
 | Engel listenizde | Ne yapıyor olursanız olun hırsızlık |
 
+Bir uygulama açılırken genelde birkaç milisaniye içinde iki üç pencere açar.
+İlkine cevap verilir, kalanlar 400 ms boyunca yok sayılır; böylece bir uygulama
+açılışı titremeye dönüşmez.
+
 Bir uygulama odağı almakta ısrar ederse, on saniye içinde üç denemeden sonra o
 kazanır. İki programın ön plan için kavga etmesi, sizin için tek bir terbiyesiz
 programdan daha kötüdür; bu yüzden program durur ve kayda "pes edildi" yazar.

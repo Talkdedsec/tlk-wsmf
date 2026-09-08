@@ -75,6 +75,10 @@ problem, so the benefit of the doubt always goes to you:
 | A key was pressed in the last 1.5 s and none of the above | You were typing: this is a theft |
 | On your block list | A theft, whatever you were doing |
 
+An application opening usually puts up two or three windows in a few
+milliseconds. The first one is answered; the rest are ignored for 400 ms, so a
+launch does not turn into a flicker.
+
 If an application keeps grabbing focus, it wins after three tries in ten seconds.
 Two programs fighting over the foreground is worse for you than one badly behaved
 program, so this one stops and says so in the log.
