@@ -165,6 +165,35 @@ impl Panel {
             });
     }
 
+    /// Settings save themselves the moment they change, with no Apply button, so the
+    /// window has to say so somewhere or the change looks like it went nowhere.
+    fn status_bar(&mut self, ui: &mut egui::Ui) {
+        let s = self.strings();
+        let dark = self.dark;
+        let recently_saved = self
+            .saved_at
+            .is_some_and(|at| at.elapsed() < Duration::from_secs(3));
+        egui::Panel::bottom("status")
+            .resizable(false)
+            .default_size(26.0)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.add_space(theme::MARGIN);
+                    ui.label(theme::muted(&config::config_path().to_string_lossy(), dark));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add_space(theme::MARGIN);
+                        if recently_saved {
+                            ui.label(
+                                egui::RichText::new(s.settings_saved)
+                                    .size(12.0)
+                                    .color(theme::palette(dark).accent),
+                            );
+                        }
+                    });
+                });
+            });
+    }
+
     fn tabs(&mut self, ui: &mut egui::Ui) {
         let s = self.strings();
         egui::Panel::top("tabs")
@@ -194,6 +223,7 @@ impl eframe::App for Panel {
         self.poll_for_outside_changes(&ctx);
         self.top_bar(ui);
         self.tabs(ui);
+        self.status_bar(ui);
         egui::CentralPanel::default().show(ui, |ui| match self.tab {
             Tab::Activity => activity::show(self, ui),
             Tab::Rules => rules::show(self, ui),

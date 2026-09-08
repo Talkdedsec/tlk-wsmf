@@ -2,6 +2,11 @@
 
 # Who Stole My Focus
 
+[![build](https://github.com/Talkdedsec/tlk-wsmf/actions/workflows/build.yml/badge.svg)](https://github.com/Talkdedsec/tlk-wsmf/actions/workflows/build.yml)
+[![release](https://img.shields.io/github/v/release/Talkdedsec/tlk-wsmf?display_name=tag&sort=semver)](https://github.com/Talkdedsec/tlk-wsmf/releases/latest)
+[![downloads](https://img.shields.io/github/downloads/Talkdedsec/tlk-wsmf/total)](https://github.com/Talkdedsec/tlk-wsmf/releases)
+[![licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+
 Yazıyorsunuz. İstemediğiniz bir pencere öne fırlıyor ve sonraki birkaç tuşu o yiyor.
 Fark ettiğinizde cümlenin yarısı başka bir yere gitmiş oluyor.
 

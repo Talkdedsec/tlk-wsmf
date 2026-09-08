@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: A window that keeps stealing focus
+    url: https://github.com/Talkdedsec/tlk-wsmf#how-it-decides
+    about: If the tool sees it but does not act, check which mode you are in first.
