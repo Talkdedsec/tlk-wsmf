@@ -22,6 +22,7 @@ use windows::Win32::UI::Controls::{
     LVS_SHOWSELALWAYS, LVS_SINGLESEL, LVSCW_AUTOSIZE_USEHEADER, LVSIL_SMALL, NM_RCLICK, NMHDR,
     SetWindowTheme,
 };
+use windows::Win32::UI::HiDpi::GetDpiForSystem;
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CW_USEDEFAULT, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu,
     GetClientRect, GetCursorPos, GetDlgItem, GetSystemMetrics, HMENU, IsWindowVisible,
@@ -41,6 +42,8 @@ const ID_ALLOW: usize = 302;
 const ID_FORGET: usize = 303;
 const ID_REVEAL: usize = 304;
 
+/// Window size at 100% scaling. CreateWindowExW takes physical pixels, so on a
+/// scaled display these have to be scaled too or the window opens too small.
 const WIDTH: i32 = 940;
 const HEIGHT: i32 = 540;
 /// Rows at the default height are cramped; this is applied through a spacer image list.
@@ -100,8 +103,11 @@ fn create_window(title: &str) -> HWND {
         };
         RegisterClassW(&wc);
 
-        let x = (GetSystemMetrics(SM_CXSCREEN) - WIDTH) / 2;
-        let y = (GetSystemMetrics(SM_CYSCREEN) - HEIGHT) / 2;
+        let dpi = GetDpiForSystem().max(96) as i32;
+        let width = WIDTH * dpi / 96;
+        let height = HEIGHT * dpi / 96;
+        let x = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
+        let y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
         let hwnd = CreateWindowExW(
             Default::default(),
             PCWSTR(class.as_ptr()),
@@ -109,8 +115,8 @@ fn create_window(title: &str) -> HWND {
             WS_OVERLAPPEDWINDOW,
             if x > 0 { x } else { CW_USEDEFAULT },
             if y > 0 { y } else { CW_USEDEFAULT },
-            WIDTH,
-            HEIGHT,
+            width,
+            height,
             None,
             None,
             Some(instance.into()),
