@@ -1,4 +1,10 @@
 # Regenerates the README images from a sample history, in both languages.
+#
+# Nothing is brought to the front and no window steals your focus: the windows are
+# moved off screen and asked to draw themselves with PrintWindow, so you can carry
+# on working while this runs. A program that fights focus theft should not commit
+# one to take its own screenshots.
+#
 # It never touches your real %APPDATA%: the panel is started with its own.
 param(
     [string]$Exe = "$PSScriptRoot\..\target\release\wsmf.exe",
@@ -21,6 +27,7 @@ public class Shot {
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out RECT r, int s);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int w, int ht, uint flags);
     public static IntPtr Biggest(uint target) {
         IntPtr hit = IntPtr.Zero;
         int widest = 0;
@@ -39,34 +46,63 @@ public class Shot {
 "@
 
 
-# Grabs one window and nothing else. PW_RENDERFULLCONTENT asks the window to draw
-# itself, so nothing behind or in front of it lands in the image; a window drawn by
-# the GPU can come back blank, and then the screen copy is the fallback.
+# Grabs one window without disturbing anything. The window is parked off screen and
+# told to render itself; only if that comes back blank does it come back on screen,
+# and even then it is shown without being activated.
 function Grab([IntPtr]$hwnd) {
+    $rect = Frame $hwnd
+    $w = $rect.Right - $rect.Left
+
+    # Move only; resizing here would catch the window mid-redraw, which is why the
+    # panel takes --size instead.
+    [Shot]::SetWindowPos($hwnd, [IntPtr]::Zero, -($w + 300), 0, 0, 0, 0x0015) | Out-Null
+    Start-Sleep -Milliseconds 1200
+    $bmp = Try-Print $hwnd
+    if ($bmp) { return $bmp }
+
+    # Some GPU drawn windows stop painting once they are off screen. Bring it back,
+    # but without activating it, so the keyboard stays where it was.
+    [Shot]::SetWindowPos($hwnd, [IntPtr]::Zero, 40, 30, 0, 0, 0x0015) | Out-Null
+    Start-Sleep -Milliseconds 1200
+    $bmp = Try-Print $hwnd
+    if ($bmp) { return $bmp }
+
+    $rect = Frame $hwnd
+    $bmp = New-Object System.Drawing.Bitmap(($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top))
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bmp.Size)
+    $g.Dispose()
+    return $bmp
+}
+
+function Frame([IntPtr]$hwnd) {
     $rect = New-Object Shot+RECT
     if ([Shot]::DwmGetWindowAttribute($hwnd, 9, [ref]$rect, 16) -ne 0) {
         [Shot]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
     }
+    return $rect
+}
+
+# Returns the bitmap, or $null when the window refused to draw itself.
+function Try-Print([IntPtr]$hwnd) {
+    $rect = Frame $hwnd
     $w = $rect.Right - $rect.Left
     $h = $rect.Bottom - $rect.Top
+    if ($w -le 0 -or $h -le 0) { return $null }
 
     $bmp = New-Object System.Drawing.Bitmap($w, $h)
     $g = [System.Drawing.Graphics]::FromImage($bmp)
     $dc = $g.GetHdc()
     $printed = [Shot]::PrintWindow($hwnd, $dc, 2)
     $g.ReleaseHdc($dc)
-
-    if ($printed -and -not (Test-Blank $bmp)) {
-        $g.Dispose()
-        return $bmp
-    }
-    $g.Clear([System.Drawing.Color]::Transparent)
-    $g.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bmp.Size)
     $g.Dispose()
-    return $bmp
+
+    if ($printed -and -not (Test-Blank $bmp)) { return $bmp }
+    $bmp.Dispose()
+    return $null
 }
 
-# A GPU drawn window that refused to print comes back as one flat colour.
+# A window that refused to print comes back as one flat colour.
 function Test-Blank([System.Drawing.Bitmap]$bmp) {
     $first = $bmp.GetPixel(4, [int]($bmp.Height / 2))
     foreach ($x in 8, [int]($bmp.Width / 3), [int]($bmp.Width / 2), ($bmp.Width - 8)) {
@@ -128,11 +164,13 @@ $lines.Add(("{0}`t{1}`t{2}`t{3}`t{4}`t{5}" -f $now.AddSeconds(7).ToString("yyyy-
 
 Set-Content -Path (Join-Path $dataDir "focus.log") -Value ($lines | Sort-Object) -Encoding utf8
 
+# Inner size the panel opens at, chosen per tab so nothing is cut off and no image
+# ends in empty background. Windows scales these by the display DPI.
 $tabSize = @{
-    activity = @(1240, 780)
-    stats    = @(1240, 900)
-    settings = @(1160, 860)
-    rules    = @(1240, 520)
+    activity = @(1000, 640)
+    stats    = @(1000, 760)
+    settings = @(940, 700)
+    rules    = @(1000, 430)
 }
 
 function Capture([string]$language, [string]$tab, [string]$file) {
@@ -155,7 +193,8 @@ foreground_lock_timeout_ms = 200000
 
     $previous = $env:APPDATA
     $env:APPDATA = $sandbox
-    $process = Start-Process $Exe -ArgumentList "--panel", "--tab", $tab -PassThru
+    $size = $tabSize[$tab]
+    $process = Start-Process $Exe -ArgumentList "--panel", "--tab", $tab, "--size", "$($size[0])x$($size[1])" -PassThru
     $env:APPDATA = $previous
     Start-Sleep -Seconds 3
 
@@ -165,11 +204,6 @@ foreground_lock_timeout_ms = 200000
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
         return
     }
-    $size = $tabSize[$tab]
-    [Shot]::MoveWindow($hwnd, 40, 30, $size[0], $size[1], $true) | Out-Null
-    [Shot]::SetForegroundWindow($hwnd) | Out-Null
-    Start-Sleep -Milliseconds 900
-
     $bmp = Grab $hwnd
     $bmp.Save((Join-Path $OutDir $file), [System.Drawing.Imaging.ImageFormat]::Png)
     $w = $bmp.Width; $h = $bmp.Height
@@ -237,10 +271,6 @@ foreground_lock_timeout_ms = 200000
         Stop-Process -Id $guard.Id -Force -ErrorAction SilentlyContinue
         return
     }
-    [Shot]::MoveWindow($hwnd, 60, 60, 1180, 520, $true) | Out-Null
-    [Shot]::SetForegroundWindow($hwnd) | Out-Null
-    Start-Sleep -Milliseconds 900
-
     $bmp = Grab $hwnd
     $bmp.Save((Join-Path $OutDir $file), [System.Drawing.Imaging.ImageFormat]::Png)
     $w = $bmp.Width; $h = $bmp.Height
