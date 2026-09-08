@@ -46,8 +46,13 @@ pub fn set_foreground_lock_timeout(ms: u32) -> bool {
     }
 }
 
-/// Whether Windows is currently in dark mode, so the quick view can match it.
+/// Whether Windows is currently in dark mode, so the windows can match it.
+/// WSMF_THEME overrides it, which is how the screenshot tool photographs both
+/// themes without changing the setting on the machine it runs on.
 pub fn dark_mode() -> bool {
+    if let Ok(forced) = std::env::var("WSMF_THEME") {
+        return !forced.eq_ignore_ascii_case("light");
+    }
     unsafe {
         let mut key = HKEY::default();
         if RegOpenKeyExW(
