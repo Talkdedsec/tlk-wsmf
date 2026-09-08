@@ -166,7 +166,10 @@ Rust 1.85 veya üstü, MSVC toolchain. Sonuç `target\release\wsmf.exe` yolunda 
   bu sürümü kırmaması.
 - **Pencereler** — test içinde gerçekten açılıp kapatılan pencereler: bir pencerenin
   kendisi hakkında ne söylediği, gizli, küçültülmüş ve kapatılmış pencerelere odağın
-  asla verilmemesi, ve odağın iki pencere arasında gerçekten taşınabilmesi.
+  asla verilmemesi, ve odağın iki pencere arasında gerçekten taşınabilmesi. Sistem
+  sorguları da çalıştırılıyor, sadece okuma: test koşusu registry'ne dokunmaz.
+- **Durum ve filtreler** — deneme sayacı ve süresinin dolması, geri almadan sonraki
+  yatışma penceresi, süresi biten duraklatma, etkinlik filtresi ve arama.
 - **Bütçe** — bin kural yüklüyken bile bir karar 10 µs'nin çok altında kalmalı
   (pratikte bir mikrosaniye civarı; bütçe meşgul bir CI makinesine pay bırakıyor); tray
   process 3 saniyeden kısa sürede açılmalı, 48 MB'ın altında kalmalı ve altı saniyelik

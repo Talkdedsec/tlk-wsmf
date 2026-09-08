@@ -88,24 +88,91 @@ fn controls(panel: &mut Panel, ui: &mut Ui) {
     });
 }
 
+/// Whether one entry belongs in the list as it is currently filtered. Split out
+/// from the drawing so it can be tested without a window on screen.
+pub fn shows(entry: &Entry, filter: Filter, needle: &str, record_everything: bool) -> bool {
+    let passes_filter = match filter {
+        Filter::All => entry.verdict.is_interruption() || record_everything,
+        Filter::Restored => entry.verdict == Verdict::Restored,
+        Filter::Seen => matches!(entry.verdict, Verdict::Observed | Verdict::GaveUp),
+    };
+    if !passes_filter {
+        return false;
+    }
+    needle.is_empty()
+        || entry.exe.to_lowercase().contains(needle)
+        || entry.title.to_lowercase().contains(needle)
+}
+
 fn filtered(panel: &Panel) -> Vec<usize> {
     let needle = panel.search.trim().to_lowercase();
     panel
         .entries
         .iter()
         .enumerate()
-        .filter(|(_, entry)| match panel.filter {
-            Filter::All => entry.verdict.is_interruption() || panel.cfg.record_everything,
-            Filter::Restored => entry.verdict == Verdict::Restored,
-            Filter::Seen => matches!(entry.verdict, Verdict::Observed | Verdict::GaveUp),
-        })
-        .filter(|(_, entry)| {
-            needle.is_empty()
-                || entry.exe.to_lowercase().contains(&needle)
-                || entry.title.to_lowercase().contains(&needle)
-        })
+        .filter(|(_, entry)| shows(entry, panel.filter, &needle, panel.cfg.record_everything))
         .map(|(index, _)| index)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::journal::Reason;
+
+    fn entry(exe: &str, title: &str, verdict: Verdict) -> Entry {
+        Entry {
+            at: Local::now(),
+            exe: exe.into(),
+            path: String::new(),
+            title: title.into(),
+            verdict,
+            reason: Reason::Typing,
+        }
+    }
+
+    #[test]
+    fn all_hides_the_ones_that_were_left_alone() {
+        let allowed = entry("explorer.exe", "Desktop", Verdict::Allowed);
+        assert!(!shows(&allowed, Filter::All, "", false));
+        // Unless you asked to see them.
+        assert!(shows(&allowed, Filter::All, "", true));
+    }
+
+    #[test]
+    fn each_filter_keeps_only_its_own() {
+        let took_back = entry("teams.exe", "Call", Verdict::Restored);
+        let seen = entry("teams.exe", "Call", Verdict::Observed);
+        let gave_up = entry("teams.exe", "Call", Verdict::GaveUp);
+
+        assert!(shows(&took_back, Filter::Restored, "", false));
+        assert!(!shows(&seen, Filter::Restored, "", false));
+
+        assert!(shows(&seen, Filter::Seen, "", false));
+        assert!(shows(&gave_up, Filter::Seen, "", false));
+        assert!(!shows(&took_back, Filter::Seen, "", false));
+    }
+
+    #[test]
+    fn search_looks_at_both_the_name_and_the_title() {
+        let item = entry("teams.exe", "Someone is calling you", Verdict::Restored);
+        assert!(shows(&item, Filter::All, "teams", false));
+        assert!(shows(&item, Filter::All, "calling", false));
+        assert!(!shows(&item, Filter::All, "outlook", false));
+    }
+
+    #[test]
+    fn search_ignores_case_on_both_sides() {
+        let item = entry("Teams.exe", "Someone Is Calling", Verdict::Restored);
+        assert!(shows(&item, Filter::All, "teams", false));
+        assert!(shows(&item, Filter::All, "calling", false));
+    }
+
+    #[test]
+    fn a_search_still_obeys_the_filter() {
+        let seen = entry("teams.exe", "Call", Verdict::Observed);
+        assert!(!shows(&seen, Filter::Restored, "teams", false));
+    }
 }
 
 fn table(panel: &mut Panel, ui: &mut Ui, rows: &[usize]) {

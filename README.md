@@ -162,7 +162,10 @@ Rust 1.85 or newer, MSVC toolchain. The result is a single executable at
   this one.
 - **Windows** — real windows created and destroyed inside the test: what a window
   reports about itself, that hidden, minimised and destroyed windows are never handed
-  focus, and that focus really can be moved between two windows.
+  focus, and that focus really can be moved between two windows. The system queries
+  are exercised too, read only: nothing in your registry is changed by a test run.
+- **State and filters** — strike counting and its expiry, the settling window after a
+  restore, a pause that has run out, and the activity filter and search.
 - **Budget** — a decision must stay well under 10 µs even with a thousand rules
   loaded (it is around a microsecond in practice; the budget leaves room for a busy
   CI runner), the
