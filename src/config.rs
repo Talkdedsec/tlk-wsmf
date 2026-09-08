@@ -208,6 +208,19 @@ pub fn log_path() -> PathBuf {
     data_dir().join("focus.log")
 }
 
+/// The settings path as a person would write it, with the roaming folder shortened
+/// back to %APPDATA%.
+pub fn config_path_label() -> String {
+    let path = config_path();
+    let text = path.to_string_lossy();
+    match std::env::var("APPDATA") {
+        Ok(roaming) if !roaming.is_empty() && text.starts_with(&roaming) => {
+            format!("%APPDATA%{}", &text[roaming.len()..])
+        }
+        _ => text.into_owned(),
+    }
+}
+
 /// When the settings file last changed, so the running copy can pick up an edit
 /// made in the panel, or in a text editor, without being restarted.
 pub fn changed_at() -> Option<SystemTime> {

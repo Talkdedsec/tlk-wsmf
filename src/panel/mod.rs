@@ -179,7 +179,7 @@ impl Panel {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.add_space(theme::MARGIN);
-                    ui.label(theme::muted(&config::config_path().to_string_lossy(), dark));
+                    ui.label(theme::muted(&config::config_path_label(), dark));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.add_space(theme::MARGIN);
                         if recently_saved {
