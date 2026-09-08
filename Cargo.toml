@@ -6,6 +6,9 @@ description = "Finds out which application steals your keyboard focus on Windows
 repository = "https://github.com/Talkdedsec/tlk-wsmf"
 license = "MIT"
 readme = "README.md"
+keywords = ["windows", "focus", "tray", "productivity"]
+categories = ["gui", "os::windows-apis"]
+rust-version = "1.85"
 
 [lib]
 name = "tlk_wsmf"
@@ -14,6 +17,17 @@ path = "src/lib.rs"
 [[bin]]
 name = "wsmf"
 path = "src/main.rs"
+
+# Lint level lives here rather than in CI flags, so a local build and the workflow
+# fail on exactly the same things.
+[lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+missing_debug_implementations = "allow"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "allow"
+uninlined_format_args = "warn"
 
 [dependencies]
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }

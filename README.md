@@ -2,6 +2,11 @@
 
 # Who Stole My Focus
 
+[![build](https://github.com/Talkdedsec/tlk-wsmf/actions/workflows/build.yml/badge.svg)](https://github.com/Talkdedsec/tlk-wsmf/actions/workflows/build.yml)
+[![release](https://img.shields.io/github/v/release/Talkdedsec/tlk-wsmf?display_name=tag&sort=semver)](https://github.com/Talkdedsec/tlk-wsmf/releases/latest)
+[![downloads](https://img.shields.io/github/downloads/Talkdedsec/tlk-wsmf/total)](https://github.com/Talkdedsec/tlk-wsmf/releases)
+[![licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+
 You are typing. A window you did not ask for jumps in front and eats the next few
 keystrokes. By the time you notice, half a sentence went somewhere else.
 

@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      # One pull request for the whole windows crate family; they move together.
+      windows:
+        patterns:
+          - windows
+          - windows-*
+      egui:
+        patterns:
+          - egui
+          - egui_*
+          - eframe
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
