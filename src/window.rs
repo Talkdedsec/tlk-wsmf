@@ -6,7 +6,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId, IsIconic,
     IsWindow, IsWindowVisible,
 };
-use windows::core::PWSTR;
+use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::UI::WindowsAndMessaging::{HICON, IDI_APPLICATION, LoadIconW};
+use windows::core::{PCWSTR, PWSTR};
 
 #[derive(Debug, Clone)]
 pub struct WindowInfo {
@@ -116,6 +118,17 @@ fn class_name(hwnd: HWND) -> String {
 /// after launch has nowhere to give focus back to.
 pub fn current_foreground() -> Option<WindowInfo> {
     WindowInfo::capture(unsafe { GetForegroundWindow() })
+}
+
+/// The application icon, compiled into the executable as resource 1. Every window
+/// class asks for it here rather than falling back to the generic Windows icon.
+pub fn app_icon() -> HICON {
+    unsafe {
+        let module = GetModuleHandleW(None).unwrap_or_default().into();
+        LoadIconW(Some(module), PCWSTR(std::ptr::without_provenance(1)))
+            .or_else(|_| LoadIconW(None, IDI_APPLICATION))
+            .unwrap_or_default()
+    }
 }
 
 pub fn wide(text: &str) -> Vec<u16> {

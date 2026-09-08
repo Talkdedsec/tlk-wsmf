@@ -1,6 +1,6 @@
 use crate::app::{App, install, take_app, with_app};
 use crate::config::Config;
-use crate::window::wide;
+use crate::window::{app_icon, wide};
 use crate::{config, guard, system, tray, viewer, window};
 use windows::Win32::Foundation::{
     ERROR_ALREADY_EXISTS, GetLastError, HWND, LPARAM, LRESULT, WPARAM,
@@ -114,6 +114,7 @@ fn create_hidden_window() -> HWND {
             lpfnWndProc: Some(window_proc),
             hInstance: instance.into(),
             lpszClassName: PCWSTR(class.as_ptr()),
+            hIcon: app_icon(),
             ..Default::default()
         };
         RegisterClassW(&wc);

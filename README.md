@@ -1,3 +1,5 @@
+![Who Stole My Focus](assets/banner.png)
+
 # Who Stole My Focus
 
 You are typing. A window you did not ask for jumps in front and eats the next few

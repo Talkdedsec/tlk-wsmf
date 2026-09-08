@@ -1,7 +1,7 @@
 use crate::app::App;
 use crate::config::Mode;
 use crate::system;
-use crate::window::wide;
+use crate::window::{app_icon, wide};
 use std::time::{Duration, Instant};
 use windows::Win32::Foundation::{HWND, LPARAM, POINT, WPARAM};
 use windows::Win32::UI::Shell::{
@@ -9,7 +9,7 @@ use windows::Win32::UI::Shell::{
     NOTIFYICONDATAW, Shell_NotifyIconW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, HICON, IDI_APPLICATION, LoadIconW,
+    AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos,
     MF_CHECKED, MF_GRAYED, MF_SEPARATOR, MF_STRING, SetForegroundWindow, TPM_BOTTOMALIGN,
     TPM_RIGHTBUTTON, TrackPopupMenu, WM_APP,
 };
@@ -30,17 +30,6 @@ pub const ID_LOCK_TIMEOUT: usize = 32;
 pub const ID_QUIT: usize = 99;
 
 const PAUSE_MINUTES: u64 = 15;
-
-fn app_icon() -> HICON {
-    unsafe {
-        let module = windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
-            .unwrap_or_default()
-            .into();
-        LoadIconW(Some(module), PCWSTR(std::ptr::without_provenance(1)))
-            .or_else(|_| LoadIconW(None, IDI_APPLICATION))
-            .unwrap_or_default()
-    }
-}
 
 fn copy_into(target: &mut [u16], text: &str) {
     let source: Vec<u16> = text.encode_utf16().take(target.len() - 1).collect();
