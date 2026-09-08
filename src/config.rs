@@ -218,10 +218,12 @@ pub fn changed_at() -> Option<SystemTime> {
 mod tests {
     use super::*;
 
+    /// One directory for every test run, so a test suite does not litter the
+    /// temporary folder with a directory per case per run.
     fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("wsmf-test-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join("wsmf-tests");
         let _ = fs::create_dir_all(&dir);
-        dir.join("config.toml")
+        dir.join(format!("{name}-{}.toml", std::process::id()))
     }
 
     #[test]
