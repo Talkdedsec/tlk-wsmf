@@ -7,25 +7,42 @@ use eframe::egui::{self, RichText, Ui};
 
 pub fn show(panel: &mut Panel, ui: &mut Ui) {
     ui.add_space(theme::GAP);
+    // Two columns when there is room: the whole page then fits without scrolling,
+    // which is the point of a settings screen you visit once.
+    const TWO_COLUMN_FROM: f32 = 980.0;
+    const COLUMN: f32 = 820.0;
+
     egui::ScrollArea::vertical().show(ui, |ui| {
-        // Settings read better in a column than stretched across a wide window, so
-        // the column is capped and centred rather than pinned to the left edge.
-        const COLUMN: f32 = 820.0;
-        ui.horizontal(|ui| {
-            let room = ui.available_width() - theme::MARGIN * 2.0;
-            ui.add_space(theme::MARGIN + ((room - COLUMN) / 2.0).max(0.0));
-            ui.vertical(|ui| {
-                ui.set_max_width(room.min(COLUMN));
-                mode(panel, ui);
-                ui.add_space(theme::GAP);
-                timing(panel, ui);
-                ui.add_space(theme::GAP);
-                behaviour(panel, ui);
-                ui.add_space(theme::GAP);
-                windows_lock(panel, ui);
+        egui::Frame::new()
+            .inner_margin(egui::Margin::symmetric(theme::MARGIN as i8, 0))
+            .show(ui, |ui| {
+                if ui.available_width() >= TWO_COLUMN_FROM {
+                    ui.columns(2, |columns| {
+                        mode(panel, &mut columns[0]);
+                        columns[0].add_space(theme::GAP);
+                        timing(panel, &mut columns[0]);
+                        behaviour(panel, &mut columns[1]);
+                        columns[1].add_space(theme::GAP);
+                        windows_lock(panel, &mut columns[1]);
+                    });
+                } else {
+                    ui.horizontal(|ui| {
+                        let room = ui.available_width();
+                        ui.add_space(((room - COLUMN) / 2.0).max(0.0));
+                        ui.vertical(|ui| {
+                            ui.set_max_width(room.min(COLUMN));
+                            mode(panel, ui);
+                            ui.add_space(theme::GAP);
+                            timing(panel, ui);
+                            ui.add_space(theme::GAP);
+                            behaviour(panel, ui);
+                            ui.add_space(theme::GAP);
+                            windows_lock(panel, ui);
+                        });
+                    });
+                }
                 ui.add_space(theme::MARGIN);
             });
-        });
     });
 }
 
@@ -78,7 +95,8 @@ fn timing(panel: &mut Panel, ui: &mut Ui) {
             .num_columns(2)
             .spacing([16.0, 10.0])
             .show(ui, |ui| {
-                ui.label(s.settings_typing_window);
+                ui.label(s.settings_typing_window)
+                    .on_hover_text(s.settings_typing_window_hint);
                 ui.add(
                     egui::Slider::new(&mut panel.cfg.typing_window_ms, 200..=5_000)
                         .suffix(format!(" {}", s.ms_suffix))
@@ -86,7 +104,8 @@ fn timing(panel: &mut Panel, ui: &mut Ui) {
                 );
                 ui.end_row();
 
-                ui.label(s.settings_click_grace);
+                ui.label(s.settings_click_grace)
+                    .on_hover_text(s.settings_click_grace_hint);
                 ui.add(
                     egui::Slider::new(&mut panel.cfg.click_grace_ms, 50..=2_000)
                         .suffix(format!(" {}", s.ms_suffix))
@@ -94,14 +113,16 @@ fn timing(panel: &mut Panel, ui: &mut Ui) {
                 );
                 ui.end_row();
 
-                ui.label(s.settings_max_restores);
+                ui.label(s.settings_max_restores)
+                    .on_hover_text(s.settings_max_restores_hint);
                 ui.add(
                     egui::Slider::new(&mut panel.cfg.max_restores, 1..=10)
                         .suffix(format!(" {}", s.times_suffix)),
                 );
                 ui.end_row();
 
-                ui.label(s.settings_restore_window);
+                ui.label(s.settings_restore_window)
+                    .on_hover_text(s.settings_restore_window_hint);
                 ui.add(
                     egui::Slider::new(&mut panel.cfg.restore_window_secs, 2..=120)
                         .suffix(format!(" {}", s.seconds_suffix)),
@@ -162,6 +183,18 @@ fn behaviour(panel: &mut Panel, ui: &mut Ui) {
     }
 }
 
+/// The raw value is milliseconds and can be anything a tweaking tool left behind,
+/// including i32::MAX. Nobody reads "2147483647 ms".
+fn human_timeout(ms: u32, s: &'static crate::i18n::Strings) -> String {
+    match ms {
+        0 => format!("(0 {})", s.ms_suffix),
+        ms if ms >= 24 * 60 * 60 * 1000 => format!("({})", s.settings_forever),
+        ms if ms >= 90_000 => format!("({} {})", ms / 60_000, s.minutes_suffix),
+        ms if ms >= 1_000 => format!("({} {})", ms / 1_000, s.seconds_suffix),
+        ms => format!("({ms} {})", s.ms_suffix),
+    }
+}
+
 fn windows_lock(panel: &mut Panel, ui: &mut Ui) {
     let s = panel.strings();
     let dark = panel.dark;
@@ -184,7 +217,7 @@ fn windows_lock(panel: &mut Panel, ui: &mut Ui) {
                 .color(if on { p.accent } else { p.gave_up })
                 .strong(),
             );
-            ui.label(theme::muted(&format!("({current} {})", s.ms_suffix), dark));
+            ui.label(theme::muted(&human_timeout(current, s), dark));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let label = if on {
                     s.settings_turn_off

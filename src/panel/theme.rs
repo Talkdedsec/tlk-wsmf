@@ -97,7 +97,7 @@ pub fn apply(ctx: &egui::Context, dark: bool) {
         style.spacing.button_padding = Vec2::new(12.0, 6.0);
         style.spacing.interact_size.y = 26.0;
         // Without this a slider inside a grid collapses to a few pixels wide.
-        style.spacing.slider_width = 210.0;
+        style.spacing.slider_width = 170.0;
         style.spacing.icon_width = 16.0;
         style.spacing.icon_width_inner = 9.0;
         style.text_styles.insert(
