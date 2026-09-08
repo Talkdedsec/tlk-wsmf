@@ -63,6 +63,10 @@ impl App {
             self.previous = Some(info);
             return;
         }
+        // The same application still opening its windows. We already answered it.
+        if self.settling(info.pid) {
+            return;
+        }
 
         let previous_alive = self
             .previous
@@ -113,6 +117,7 @@ impl App {
             };
             if handed_back {
                 self.add_strike(&info.exe);
+                self.last_restore = Some((info.pid, std::time::Instant::now()));
             } else {
                 // Windows refused. Recording it is still worth something.
                 self.previous = Some(info.clone());

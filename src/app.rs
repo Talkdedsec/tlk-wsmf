@@ -21,6 +21,10 @@ pub struct App {
     pub tray_window: HWND,
     pub viewer: HWND,
     pub paused_until: Option<Instant>,
+    /// Who we last took focus from, and when. An application opening often puts up
+    /// two or three windows in a few milliseconds; taking focus back from each of
+    /// them in turn is a flicker, not a defence.
+    pub last_restore: Option<(u32, Instant)>,
     pub ticks: u64,
     /// What the settings file looked like when we last read or wrote it, so an
     /// edit from the panel is picked up and our own save is not read back.
@@ -68,6 +72,7 @@ impl App {
             tray_window: HWND::default(),
             viewer: HWND::default(),
             paused_until: None,
+            last_restore: None,
             ticks: 0,
             config_stamp: config::changed_at(),
         }
@@ -92,6 +97,13 @@ impl App {
         self.journal.set_to_file(fresh.log_to_file);
         self.cfg = fresh;
         true
+    }
+
+    /// True while the same process is still mid-launch after a restore.
+    pub fn settling(&self, pid: u32) -> bool {
+        const SETTLE: std::time::Duration = std::time::Duration::from_millis(400);
+        self.last_restore
+            .is_some_and(|(last, at)| last == pid && at.elapsed() < SETTLE)
     }
 
     pub fn is_paused(&self) -> bool {
