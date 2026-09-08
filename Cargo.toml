@@ -1,6 +1,6 @@
 [package]
 name = "tlk-wsmf"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Finds out which application steals your keyboard focus on Windows, and stops it"
 repository = "https://github.com/Talkdedsec/tlk-wsmf"
