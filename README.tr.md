@@ -104,8 +104,8 @@ Bu tablodaki her satır bir birim testi. Bir karara katılmıyorsanız
 Ön plan değişikliklerini okumak ve odağı taşımak bu programın işi; aynı zamanda bazı
 zararlı yazılımların da yaptığı şey, dolayısıyla sezgisel tarayıcılar ilgi
 gösterebilir. Sürümler, iddia ettikleri etiketten GitHub Actions ile derleniyor ve
-workflow bu depoda. Tarayıcınız yine de işaretlerse, programın tamamı iki bin satır
-civarında Rust ve hepsini okuyabilirsiniz.
+workflow bu depoda. Tarayıcınız yine de işaretlerse, programın tamamı dört buçuk bin
+satır civarında Rust ve hepsini okuyabilirsiniz.
 
 ## Ayarlar
 
