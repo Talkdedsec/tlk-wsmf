@@ -28,6 +28,7 @@ public class Shot {
     [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out RECT r, int s);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int w, int ht, uint flags);
+    [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr context);
     public static IntPtr Biggest(uint target) {
         IntPtr hit = IntPtr.Zero;
         int widest = 0;
@@ -84,10 +85,15 @@ function Frame([IntPtr]$hwnd) {
 }
 
 # Returns the bitmap, or $null when the window refused to draw itself.
+#
+# PrintWindow draws into a surface the size of GetWindowRect, which includes the
+# invisible resize border; the visible edge is the DWM frame. Painting the larger
+# one and then cropping to the smaller is what keeps a white strip off the bottom.
 function Try-Print([IntPtr]$hwnd) {
-    $rect = Frame $hwnd
-    $w = $rect.Right - $rect.Left
-    $h = $rect.Bottom - $rect.Top
+    $outer = New-Object Shot+RECT
+    [Shot]::GetWindowRect($hwnd, [ref]$outer) | Out-Null
+    $w = $outer.Right - $outer.Left
+    $h = $outer.Bottom - $outer.Top
     if ($w -le 0 -or $h -le 0) { return $null }
 
     $bmp = New-Object System.Drawing.Bitmap($w, $h)
@@ -97,9 +103,24 @@ function Try-Print([IntPtr]$hwnd) {
     $g.ReleaseHdc($dc)
     $g.Dispose()
 
-    if ($printed -and -not (Test-Blank $bmp)) { return $bmp }
+    if (-not $printed -or (Test-Blank $bmp)) {
+        $bmp.Dispose()
+        return $null
+    }
+
+    $frame = Frame $hwnd
+    $crop = New-Object System.Drawing.Rectangle(
+        ($frame.Left - $outer.Left),
+        ($frame.Top - $outer.Top),
+        ($frame.Right - $frame.Left),
+        ($frame.Bottom - $frame.Top))
+    if ($crop.Width -le 0 -or $crop.Height -le 0 -or
+        $crop.Right -gt $bmp.Width -or $crop.Bottom -gt $bmp.Height) {
+        return $bmp
+    }
+    $cropped = $bmp.Clone($crop, $bmp.PixelFormat)
     $bmp.Dispose()
-    return $null
+    return $cropped
 }
 
 # A window that refused to print comes back as one flat colour.
@@ -112,6 +133,10 @@ function Test-Blank([System.Drawing.Bitmap]$bmp) {
     }
     return $true
 }
+
+# Without this PowerShell is DPI unaware, GetWindowRect answers in scaled
+# coordinates while DWM answers in real pixels, and every crop is wrong.
+[Shot]::SetProcessDpiAwarenessContext([IntPtr](-4)) | Out-Null
 
 $sandbox = Join-Path $env:TEMP "wsmf-shots"
 if (-not (Test-Path $sandbox)) { New-Item -ItemType Directory -Path $sandbox | Out-Null }
@@ -169,7 +194,7 @@ Set-Content -Path (Join-Path $dataDir "focus.log") -Value ($lines | Sort-Object)
 $tabSize = @{
     activity = @(1000, 640)
     stats    = @(1000, 760)
-    settings = @(940, 700)
+    settings = @(1060, 700)
     rules    = @(1000, 430)
 }
 
@@ -232,7 +257,7 @@ mode = "guard"
 language = "$language"
 typing_window_ms = 1500
 click_grace_ms = 400
-blocklist = ["mspaint.exe", "updater.exe"]
+blocklist = ["mspaint.exe"]
 allowlist = ["explorer.exe", "searchhost.exe", "wsmf.exe"]
 flash_thief = true
 max_restores = 3
@@ -251,12 +276,17 @@ foreground_lock_timeout_ms = 200000
     $guard = Start-Process $Exe -PassThru
     Start-Sleep -Seconds 2
 
-    # A few entries to show, then a second launch to bring the quick view up.
-    foreach ($app in @("notepad", "mspaint")) {
-        Start-Process $app -ErrorAction SilentlyContinue
-        Start-Sleep -Milliseconds 1400
+    # Enough real events for the list to look like a list. Each application is left
+    # alone for longer than the settling window, so each one becomes its own entry.
+    # Classic desktop applications only: a UWP app is hosted by ApplicationFrameHost,
+    # which does not stop by its own name and leaves a window behind. Several
+    # different ones, so the list shows more than one name and more than one verdict:
+    # mspaint is on the block list, the rest are simply recorded.
+    foreach ($app in @("mspaint", "cmd", "charmap", "mspaint", "cmd")) {
+        Start-Process $app -WindowStyle Normal -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 1500
         Stop-Process -Name $app -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Milliseconds 600
+        Start-Sleep -Milliseconds 1000
     }
     # A second launch is how the quick view is asked for; it exits straight after.
     $waker = Start-Process $Exe -PassThru
