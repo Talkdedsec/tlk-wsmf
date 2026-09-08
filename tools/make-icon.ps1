@@ -88,4 +88,21 @@ $bw.Flush()
 $bw.Dispose()
 $fs.Dispose()
 
-Write-Output "wrote $Out ($($frames.Count) sizes)"
+# The panel needs the same mark as raw RGBA, since it draws its own window icon.
+$raw = Join-Path $outDir "wsmf-64.rgba"
+$bmp = New-Frame 64
+$bytes = New-Object byte[] (64 * 64 * 4)
+$i = 0
+for ($y = 0; $y -lt 64; $y++) {
+    for ($x = 0; $x -lt 64; $x++) {
+        $c = $bmp.GetPixel($x, $y)
+        $bytes[$i++] = $c.R
+        $bytes[$i++] = $c.G
+        $bytes[$i++] = $c.B
+        $bytes[$i++] = $c.A
+    }
+}
+$bmp.Dispose()
+[System.IO.File]::WriteAllBytes($raw, $bytes)
+
+Write-Output "wrote $Out ($($frames.Count) sizes) and $raw"

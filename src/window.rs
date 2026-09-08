@@ -3,7 +3,8 @@ use windows::Win32::System::Threading::{
     OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId, IsWindow,
+    GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId, IsIconic,
+    IsWindow, IsWindowVisible,
 };
 use windows::core::PWSTR;
 
@@ -43,8 +44,15 @@ impl WindowInfo {
         })
     }
 
-    pub fn still_alive(&self) -> bool {
-        unsafe { IsWindow(Some(self.hwnd)).as_bool() }
+    /// Somewhere focus can actually go back to. A window that has closed, been
+    /// hidden or been minimised is not it: handing focus to one of those either
+    /// fails or drags something back up that the user put away.
+    pub fn can_take_focus(&self) -> bool {
+        unsafe {
+            IsWindow(Some(self.hwnd)).as_bool()
+                && IsWindowVisible(self.hwnd).as_bool()
+                && !IsIconic(self.hwnd).as_bool()
+        }
     }
 
     /// Windows the user never asked for and cannot act on: tooltips, the desktop

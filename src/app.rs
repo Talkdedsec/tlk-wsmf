@@ -1,10 +1,10 @@
-use crate::config::Config;
+use crate::config::{self, Config};
 use crate::input::InputWatch;
 use crate::journal::Journal;
 use crate::window::WindowInfo;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Accessibility::HWINEVENTHOOK;
 
@@ -21,6 +21,10 @@ pub struct App {
     pub tray_window: HWND,
     pub viewer: HWND,
     pub paused_until: Option<Instant>,
+    pub ticks: u64,
+    /// What the settings file looked like when we last read or wrote it, so an
+    /// edit from the panel is picked up and our own save is not read back.
+    config_stamp: Option<SystemTime>,
 }
 
 pub struct Strike {
@@ -64,7 +68,30 @@ impl App {
             tray_window: HWND::default(),
             viewer: HWND::default(),
             paused_until: None,
+            ticks: 0,
+            config_stamp: config::changed_at(),
         }
+    }
+
+    pub fn save_config(&mut self) {
+        let _ = self.cfg.save();
+        self.config_stamp = config::changed_at();
+    }
+
+    /// Returns true when the settings actually changed under us.
+    pub fn reload_config_if_changed(&mut self) -> bool {
+        let stamp = config::changed_at();
+        if stamp == self.config_stamp {
+            return false;
+        }
+        self.config_stamp = stamp;
+        let fresh = Config::load();
+        if fresh == self.cfg {
+            return false;
+        }
+        self.journal.set_to_file(fresh.log_to_file);
+        self.cfg = fresh;
+        true
     }
 
     pub fn is_paused(&self) -> bool {

@@ -1,37 +1,49 @@
-//! The window that answers the question in the product's name.
+//! The quick view: what the tray icon opens on a single click. Deliberately thin —
+//! a list of what just happened and the two rules you would want to add from it.
+//! Anything longer lived belongs in the panel.
 
 use crate::app::{App, with_app};
+use crate::system;
 use crate::window::wide;
 use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
-use windows::Win32::Graphics::Gdi::{CreateFontIndirectW, HFONT};
+use windows::Win32::Graphics::Dwm::{DWMWA_USE_IMMERSIVE_DARK_MODE, DwmSetWindowAttribute};
+use windows::Win32::Graphics::Gdi::{
+    COLOR_WINDOW, CreateFontIndirectW, CreateSolidBrush, HBRUSH, HFONT,
+};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Controls::{
     ICC_LISTVIEW_CLASSES, INITCOMMONCONTROLSEX, InitCommonControlsEx, LVCF_SUBITEM, LVCF_TEXT,
     LVCF_WIDTH, LVCOLUMNW, LVIF_TEXT, LVITEMW, LVM_DELETEALLITEMS, LVM_GETNEXTITEM,
-    LVM_INSERTCOLUMNW, LVM_INSERTITEMW, LVM_SETEXTENDEDLISTVIEWSTYLE, LVM_SETITEMTEXTW,
-    LVM_SETTEXTCOLOR, LVNI_SELECTED, LVS_EX_DOUBLEBUFFER, LVS_EX_FULLROWSELECT, LVS_REPORT,
-    LVS_SHOWSELALWAYS, LVS_SINGLESEL, NM_RCLICK, NMHDR,
+    LVM_INSERTCOLUMNW, LVM_INSERTITEMW, LVM_SETBKCOLOR, LVM_SETEXTENDEDLISTVIEWSTYLE,
+    LVM_SETITEMTEXTW, LVM_SETTEXTBKCOLOR, LVM_SETTEXTCOLOR, LVNI_SELECTED, LVS_EX_DOUBLEBUFFER,
+    LVS_EX_FULLROWSELECT, LVS_REPORT, LVS_SHOWSELALWAYS, LVS_SINGLESEL, NM_RCLICK, NMHDR,
+    SetWindowTheme,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CW_USEDEFAULT, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu,
-    GetClientRect, GetCursorPos, GetSystemMetrics, HMENU, MF_SEPARATOR, MF_STRING, MoveWindow,
-    NONCLIENTMETRICSW, RegisterClassW, SM_CXSCREEN, SM_CYSCREEN, SPI_GETNONCLIENTMETRICS,
-    SW_SHOWNORMAL, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SendMessageW, SetForegroundWindow,
-    ShowWindow, SystemParametersInfoW, TPM_RIGHTBUTTON, TrackPopupMenu, WM_CLOSE, WM_COMMAND,
-    WM_NOTIFY, WM_SETFONT, WM_SIZE, WNDCLASSW, WS_CHILD, WS_EX_CLIENTEDGE, WS_OVERLAPPEDWINDOW,
-    WS_VISIBLE,
+    GetClientRect, GetCursorPos, GetDlgItem, GetSystemMetrics, HMENU, IsWindowVisible,
+    MF_SEPARATOR, MF_STRING, MoveWindow, NONCLIENTMETRICSW, RegisterClassW, SM_CXSCREEN,
+    SM_CYSCREEN, SPI_GETNONCLIENTMETRICS, SW_HIDE, SW_SHOWNORMAL,
+    SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SendMessageW, SetForegroundWindow, ShowWindow,
+    SystemParametersInfoW, TPM_RIGHTBUTTON, TrackPopupMenu, WINDOW_STYLE, WM_CLOSE, WM_COMMAND,
+    WM_CREATE, WM_NOTIFY, WM_SETFONT, WM_SIZE, WNDCLASSW, WS_CHILD, WS_EX_CLIENTEDGE,
+    WS_OVERLAPPEDWINDOW, WS_VISIBLE,
 };
-use windows::core::PCWSTR;
+use windows::core::{PCWSTR, PWSTR};
 
-const CLASS_NAME: &str = "WsmfViewer";
-const ID_LIST: isize = 200;
+const CLASS_NAME: &str = "WsmfQuickView";
+const ID_LIST: i32 = 200;
 const ID_BLOCK: usize = 301;
 const ID_ALLOW: usize = 302;
 const ID_FORGET: usize = 303;
 const ID_REVEAL: usize = 304;
 
-const WIDTH: i32 = 900;
-const HEIGHT: i32 = 520;
+const WIDTH: i32 = 940;
+const HEIGHT: i32 = 540;
+
+const DARK_BACKGROUND: u32 = 0x0020_1B18;
+const DARK_TEXT: u32 = 0x00E8_E6E3;
+const LIGHT_TEXT: u32 = 0x0020_2020;
 
 pub fn show(app: &mut App) {
     if app.viewer.is_invalid() {
@@ -48,10 +60,7 @@ pub fn show(app: &mut App) {
 }
 
 pub fn refresh(app: &mut App) {
-    if app.viewer.is_invalid() {
-        return;
-    }
-    if unsafe { windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(app.viewer).as_bool() } {
+    if !app.viewer.is_invalid() && unsafe { IsWindowVisible(app.viewer).as_bool() } {
         fill(app);
     }
 }
@@ -66,23 +75,27 @@ fn create_window() -> HWND {
 
         let instance = GetModuleHandleW(None).unwrap_or_default();
         let class = wide(CLASS_NAME);
+        let dark = system::dark_mode();
         let wc = WNDCLASSW {
             lpfnWndProc: Some(viewer_proc),
             hInstance: instance.into(),
             lpszClassName: PCWSTR(class.as_ptr()),
-            hbrBackground: windows::Win32::Graphics::Gdi::HBRUSH(
-                (windows::Win32::Graphics::Gdi::COLOR_WINDOW.0 + 1) as isize as *mut _,
-            ),
+            hbrBackground: if dark {
+                CreateSolidBrush(COLORREF(DARK_BACKGROUND))
+            } else {
+                HBRUSH((COLOR_WINDOW.0 + 1) as isize as *mut _)
+            },
             ..Default::default()
         };
         RegisterClassW(&wc);
 
+        let title = with_app(|app| app.cfg.strings().app_name).unwrap_or("Who Stole My Focus");
         let x = (GetSystemMetrics(SM_CXSCREEN) - WIDTH) / 2;
         let y = (GetSystemMetrics(SM_CYSCREEN) - HEIGHT) / 2;
         let hwnd = CreateWindowExW(
             Default::default(),
             PCWSTR(class.as_ptr()),
-            PCWSTR(wide("Who Stole My Focus").as_ptr()),
+            PCWSTR(wide(title).as_ptr()),
             WS_OVERLAPPEDWINDOW,
             if x > 0 { x } else { CW_USEDEFAULT },
             if y > 0 { y } else { CW_USEDEFAULT },
@@ -92,16 +105,24 @@ fn create_window() -> HWND {
             None,
             Some(instance.into()),
             None,
-        );
-        hwnd.unwrap_or_default()
+        )
+        .unwrap_or_default();
+
+        if dark && !hwnd.is_invalid() {
+            let on: i32 = 1;
+            let _ = DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                &on as *const i32 as *const _,
+                size_of::<i32>() as u32,
+            );
+        }
+        hwnd
     }
 }
 
 fn list_of(hwnd: HWND) -> HWND {
-    unsafe {
-        windows::Win32::UI::WindowsAndMessaging::GetDlgItem(Some(hwnd), ID_LIST as i32)
-            .unwrap_or_default()
-    }
+    unsafe { GetDlgItem(Some(hwnd), ID_LIST).unwrap_or_default() }
 }
 
 fn create_list(parent: HWND) -> HWND {
@@ -111,17 +132,13 @@ fn create_list(parent: HWND) -> HWND {
             WS_EX_CLIENTEDGE,
             PCWSTR(wide("SysListView32").as_ptr()),
             PCWSTR::null(),
-            WS_CHILD
-                | WS_VISIBLE
-                | windows::Win32::UI::WindowsAndMessaging::WINDOW_STYLE(
-                    LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
-                ),
+            WS_CHILD | WS_VISIBLE | WINDOW_STYLE(LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS),
             0,
             0,
             0,
             0,
             Some(parent),
-            Some(HMENU(ID_LIST as *mut _)),
+            Some(HMENU(ID_LIST as isize as *mut _)),
             Some(instance.into()),
             None,
         ) else {
@@ -136,12 +153,32 @@ fn create_list(parent: HWND) -> HWND {
                 (LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER) as isize,
             )),
         );
-        SendMessageW(
-            list,
-            LVM_SETTEXTCOLOR,
-            Some(WPARAM(0)),
-            Some(LPARAM(COLORREF(0x00202020).0 as isize)),
-        );
+
+        let dark = system::dark_mode();
+        if dark {
+            let _ = SetWindowTheme(list, PCWSTR(wide("DarkMode_Explorer").as_ptr()), None);
+            for (message, colour) in [
+                (LVM_SETBKCOLOR, DARK_BACKGROUND),
+                (LVM_SETTEXTBKCOLOR, DARK_BACKGROUND),
+                (LVM_SETTEXTCOLOR, DARK_TEXT),
+            ] {
+                SendMessageW(
+                    list,
+                    message,
+                    Some(WPARAM(0)),
+                    Some(LPARAM(COLORREF(colour).0 as isize)),
+                );
+            }
+        } else {
+            let _ = SetWindowTheme(list, PCWSTR(wide("Explorer").as_ptr()), None);
+            SendMessageW(
+                list,
+                LVM_SETTEXTCOLOR,
+                Some(WPARAM(0)),
+                Some(LPARAM(COLORREF(LIGHT_TEXT).0 as isize)),
+            );
+        }
+
         if let Some(font) = message_font() {
             SendMessageW(
                 list,
@@ -151,12 +188,13 @@ fn create_list(parent: HWND) -> HWND {
             );
         }
 
+        let s = with_app(|app| app.cfg.strings()).unwrap_or(&crate::i18n::EN);
         for (index, (title, width)) in [
-            ("When", 140),
-            ("Application", 190),
-            ("What happened", 150),
-            ("Why", 170),
-            ("Window title", 230),
+            (s.column_when, 130),
+            (s.column_app, 200),
+            (s.column_what, 130),
+            (s.column_why, 190),
+            (s.column_title, 260),
         ]
         .iter()
         .enumerate()
@@ -165,7 +203,7 @@ fn create_list(parent: HWND) -> HWND {
             let column = LVCOLUMNW {
                 mask: LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM,
                 cx: *width,
-                pszText: windows::core::PWSTR(text.as_ptr() as *mut u16),
+                pszText: PWSTR(text.as_ptr() as *mut u16),
                 iSubItem: index as i32,
                 ..Default::default()
             };
@@ -202,6 +240,7 @@ fn fill(app: &mut App) {
     if list.is_invalid() {
         return;
     }
+    let s = app.cfg.strings();
     unsafe {
         SendMessageW(list, LVM_DELETEALLITEMS, None, None);
         for (row, entry) in app.journal.entries().enumerate() {
@@ -210,7 +249,7 @@ fn fill(app: &mut App) {
                 mask: LVIF_TEXT,
                 iItem: row as i32,
                 iSubItem: 0,
-                pszText: windows::core::PWSTR(when.as_ptr() as *mut u16),
+                pszText: PWSTR(when.as_ptr() as *mut u16),
                 ..Default::default()
             };
             SendMessageW(
@@ -221,8 +260,8 @@ fn fill(app: &mut App) {
             );
             let columns = [
                 entry.exe.clone(),
-                entry.verdict.label().to_string(),
-                entry.reason.to_string(),
+                entry.verdict.label(s).to_string(),
+                entry.reason.label(s).to_string(),
                 entry.title.clone(),
             ];
             for (offset, text) in columns.iter().enumerate() {
@@ -231,7 +270,7 @@ fn fill(app: &mut App) {
                     mask: LVIF_TEXT,
                     iItem: row as i32,
                     iSubItem: offset as i32 + 1,
-                    pszText: windows::core::PWSTR(value.as_ptr() as *mut u16),
+                    pszText: PWSTR(value.as_ptr() as *mut u16),
                     ..Default::default()
                 };
                 SendMessageW(
@@ -272,6 +311,7 @@ fn row_menu(app: &mut App) {
     let Some((exe, path)) = selected_entry(app) else {
         return;
     };
+    let s = app.cfg.strings();
     unsafe {
         let Ok(menu) = CreatePopupMenu() else {
             return;
@@ -279,13 +319,12 @@ fn row_menu(app: &mut App) {
         let label = |id: usize, text: String| {
             let _ = AppendMenuW(menu, MF_STRING, id, PCWSTR(wide(&text).as_ptr()));
         };
-        label(ID_BLOCK, format!("Always take focus back from {exe}"));
-        label(ID_ALLOW, format!("Never touch {exe}"));
-        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
-        label(ID_FORGET, format!("Forget the rule for {exe}"));
+        label(ID_BLOCK, format!("{} {exe}", s.menu_block));
+        label(ID_ALLOW, format!("{} {exe}", s.menu_allow));
+        label(ID_FORGET, format!("{} {exe}", s.menu_forget));
         if !path.is_empty() {
             let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
-            label(ID_REVEAL, "Show me the file".to_string());
+            label(ID_REVEAL, s.menu_reveal.to_string());
         }
 
         let mut point = POINT::default();
@@ -311,7 +350,7 @@ unsafe extern "system" fn viewer_proc(
     lparam: LPARAM,
 ) -> LRESULT {
     match message {
-        windows::Win32::UI::WindowsAndMessaging::WM_CREATE => {
+        WM_CREATE => {
             create_list(hwnd);
             LRESULT(0)
         }
@@ -340,9 +379,18 @@ unsafe extern "system" fn viewer_proc(
                     return;
                 };
                 match id {
-                    ID_BLOCK => app.cfg.block(&exe),
-                    ID_ALLOW => app.cfg.allow(&exe),
-                    ID_FORGET => app.cfg.forget(&exe),
+                    ID_BLOCK => {
+                        app.cfg.block(&exe);
+                        app.save_config();
+                    }
+                    ID_ALLOW => {
+                        app.cfg.allow(&exe);
+                        app.save_config();
+                    }
+                    ID_FORGET => {
+                        app.cfg.forget(&exe);
+                        app.save_config();
+                    }
                     ID_REVEAL => reveal_in_explorer(&path),
                     _ => {}
                 }
@@ -351,7 +399,7 @@ unsafe extern "system" fn viewer_proc(
         }
         WM_CLOSE => {
             unsafe {
-                let _ = ShowWindow(hwnd, windows::Win32::UI::WindowsAndMessaging::SW_HIDE);
+                let _ = ShowWindow(hwnd, SW_HIDE);
             }
             LRESULT(0)
         }

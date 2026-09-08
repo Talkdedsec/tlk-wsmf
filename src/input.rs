@@ -16,6 +16,12 @@ pub struct InputWatch {
     last_click_tick: Option<u32>,
 }
 
+impl Default for InputWatch {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InputWatch {
     pub fn new() -> Self {
         // Drain the "pressed since last call" bits so a click from before we started

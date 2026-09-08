@@ -21,8 +21,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test
-      - run: cargo build --release
+
+      # Release, because the performance budget is measured against a real build
+      # and the window tests want the actual executable.
+      - name: Unit and integration tests
+        run: cargo test --release
+
       - uses: actions/upload-artifact@v4
         with:
           name: wsmf
