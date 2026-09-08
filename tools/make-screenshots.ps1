@@ -20,6 +20,7 @@ public class Shot {
     [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int ht, bool repaint);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out RECT r, int s);
+    [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
     public static IntPtr Biggest(uint target) {
         IntPtr hit = IntPtr.Zero;
         int widest = 0;
@@ -36,6 +37,45 @@ public class Shot {
     }
 }
 "@
+
+
+# Grabs one window and nothing else. PW_RENDERFULLCONTENT asks the window to draw
+# itself, so nothing behind or in front of it lands in the image; a window drawn by
+# the GPU can come back blank, and then the screen copy is the fallback.
+function Grab([IntPtr]$hwnd) {
+    $rect = New-Object Shot+RECT
+    if ([Shot]::DwmGetWindowAttribute($hwnd, 9, [ref]$rect, 16) -ne 0) {
+        [Shot]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
+    }
+    $w = $rect.Right - $rect.Left
+    $h = $rect.Bottom - $rect.Top
+
+    $bmp = New-Object System.Drawing.Bitmap($w, $h)
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $dc = $g.GetHdc()
+    $printed = [Shot]::PrintWindow($hwnd, $dc, 2)
+    $g.ReleaseHdc($dc)
+
+    if ($printed -and -not (Test-Blank $bmp)) {
+        $g.Dispose()
+        return $bmp
+    }
+    $g.Clear([System.Drawing.Color]::Transparent)
+    $g.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bmp.Size)
+    $g.Dispose()
+    return $bmp
+}
+
+# A GPU drawn window that refused to print comes back as one flat colour.
+function Test-Blank([System.Drawing.Bitmap]$bmp) {
+    $first = $bmp.GetPixel(4, [int]($bmp.Height / 2))
+    foreach ($x in 8, [int]($bmp.Width / 3), [int]($bmp.Width / 2), ($bmp.Width - 8)) {
+        foreach ($y in [int]($bmp.Height / 3), [int]($bmp.Height / 2), ($bmp.Height - 8)) {
+            if ($bmp.GetPixel($x, $y) -ne $first) { return $false }
+        }
+    }
+    return $true
+}
 
 $sandbox = Join-Path $env:TEMP "wsmf-shots"
 if (-not (Test-Path $sandbox)) { New-Item -ItemType Directory -Path $sandbox | Out-Null }
@@ -88,6 +128,13 @@ $lines.Add(("{0}`t{1}`t{2}`t{3}`t{4}`t{5}" -f $now.AddSeconds(7).ToString("yyyy-
 
 Set-Content -Path (Join-Path $dataDir "focus.log") -Value ($lines | Sort-Object) -Encoding utf8
 
+$tabSize = @{
+    activity = @(1240, 780)
+    stats    = @(1240, 900)
+    settings = @(1160, 860)
+    rules    = @(1240, 520)
+}
+
 function Capture([string]$language, [string]$tab, [string]$file) {
     $config = @"
 mode = "guard"
@@ -118,21 +165,14 @@ foreground_lock_timeout_ms = 200000
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
         return
     }
-    [Shot]::MoveWindow($hwnd, 40, 30, 1240, 800, $true) | Out-Null
+    $size = $tabSize[$tab]
+    [Shot]::MoveWindow($hwnd, 40, 30, $size[0], $size[1], $true) | Out-Null
     [Shot]::SetForegroundWindow($hwnd) | Out-Null
     Start-Sleep -Milliseconds 900
 
-    $rect = New-Object Shot+RECT
-    if ([Shot]::DwmGetWindowAttribute($hwnd, 9, [ref]$rect, 16) -ne 0) {
-        [Shot]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
-    }
-    $w = $rect.Right - $rect.Left
-    $h = $rect.Bottom - $rect.Top
-    $bmp = New-Object System.Drawing.Bitmap($w, $h)
-    $g = [System.Drawing.Graphics]::FromImage($bmp)
-    $g.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bmp.Size)
-    $g.Dispose()
+    $bmp = Grab $hwnd
     $bmp.Save((Join-Path $OutDir $file), [System.Drawing.Imaging.ImageFormat]::Png)
+    $w = $bmp.Width; $h = $bmp.Height
     $bmp.Dispose()
     Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
     Start-Sleep -Milliseconds 400
@@ -197,21 +237,13 @@ foreground_lock_timeout_ms = 200000
         Stop-Process -Id $guard.Id -Force -ErrorAction SilentlyContinue
         return
     }
-    [Shot]::MoveWindow($hwnd, 60, 60, 1180, 620, $true) | Out-Null
+    [Shot]::MoveWindow($hwnd, 60, 60, 1180, 520, $true) | Out-Null
     [Shot]::SetForegroundWindow($hwnd) | Out-Null
     Start-Sleep -Milliseconds 900
 
-    $rect = New-Object Shot+RECT
-    if ([Shot]::DwmGetWindowAttribute($hwnd, 9, [ref]$rect, 16) -ne 0) {
-        [Shot]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
-    }
-    $w = $rect.Right - $rect.Left
-    $h = $rect.Bottom - $rect.Top
-    $bmp = New-Object System.Drawing.Bitmap($w, $h)
-    $g = [System.Drawing.Graphics]::FromImage($bmp)
-    $g.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bmp.Size)
-    $g.Dispose()
+    $bmp = Grab $hwnd
     $bmp.Save((Join-Path $OutDir $file), [System.Drawing.Imaging.ImageFormat]::Png)
+    $w = $bmp.Width; $h = $bmp.Height
     $bmp.Dispose()
     Stop-Process -Id $guard.Id -Force -ErrorAction SilentlyContinue
     Start-Sleep -Milliseconds 700
