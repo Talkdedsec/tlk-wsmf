@@ -11,12 +11,15 @@ use windows::Win32::Graphics::Gdi::{
     COLOR_WINDOW, CreateFontIndirectW, CreateSolidBrush, HBRUSH, HFONT,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::UI::Controls::IMAGELIST_CREATION_FLAGS;
+use windows::Win32::UI::Controls::ImageList_Create;
 use windows::Win32::UI::Controls::{
     ICC_LISTVIEW_CLASSES, INITCOMMONCONTROLSEX, InitCommonControlsEx, LVCF_SUBITEM, LVCF_TEXT,
-    LVCF_WIDTH, LVCOLUMNW, LVIF_TEXT, LVITEMW, LVM_DELETEALLITEMS, LVM_GETNEXTITEM,
-    LVM_INSERTCOLUMNW, LVM_INSERTITEMW, LVM_SETBKCOLOR, LVM_SETEXTENDEDLISTVIEWSTYLE,
-    LVM_SETITEMTEXTW, LVM_SETTEXTBKCOLOR, LVM_SETTEXTCOLOR, LVNI_SELECTED, LVS_EX_DOUBLEBUFFER,
-    LVS_EX_FULLROWSELECT, LVS_REPORT, LVS_SHOWSELALWAYS, LVS_SINGLESEL, NM_RCLICK, NMHDR,
+    LVCF_WIDTH, LVCOLUMNW, LVIF_TEXT, LVITEMW, LVM_DELETEALLITEMS, LVM_GETHEADER, LVM_GETNEXTITEM,
+    LVM_INSERTCOLUMNW, LVM_INSERTITEMW, LVM_SETBKCOLOR, LVM_SETCOLUMNWIDTH,
+    LVM_SETEXTENDEDLISTVIEWSTYLE, LVM_SETIMAGELIST, LVM_SETITEMTEXTW, LVM_SETTEXTBKCOLOR,
+    LVM_SETTEXTCOLOR, LVNI_SELECTED, LVS_EX_DOUBLEBUFFER, LVS_EX_FULLROWSELECT, LVS_REPORT,
+    LVS_SHOWSELALWAYS, LVS_SINGLESEL, LVSCW_AUTOSIZE_USEHEADER, LVSIL_SMALL, NM_RCLICK, NMHDR,
     SetWindowTheme,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -26,8 +29,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     SM_CYSCREEN, SPI_GETNONCLIENTMETRICS, SW_HIDE, SW_SHOWNORMAL,
     SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SendMessageW, SetForegroundWindow, ShowWindow,
     SystemParametersInfoW, TPM_RIGHTBUTTON, TrackPopupMenu, WINDOW_STYLE, WM_CLOSE, WM_COMMAND,
-    WM_CREATE, WM_NOTIFY, WM_SETFONT, WM_SIZE, WNDCLASSW, WS_CHILD, WS_EX_CLIENTEDGE,
-    WS_OVERLAPPEDWINDOW, WS_VISIBLE,
+    WM_CREATE, WM_NOTIFY, WM_SETFONT, WM_SIZE, WNDCLASSW, WS_CHILD, WS_OVERLAPPEDWINDOW,
+    WS_VISIBLE,
 };
 use windows::core::{PCWSTR, PWSTR};
 
@@ -40,6 +43,9 @@ const ID_REVEAL: usize = 304;
 
 const WIDTH: i32 = 940;
 const HEIGHT: i32 = 540;
+/// Rows at the default height are cramped; this is applied through a spacer image list.
+const ROW_HEIGHT: i32 = 22;
+const COLUMNS: usize = 5;
 
 const DARK_BACKGROUND: u32 = 0x0020_1B18;
 const DARK_TEXT: u32 = 0x00E8_E6E3;
@@ -47,10 +53,14 @@ const LIGHT_TEXT: u32 = 0x0020_2020;
 
 pub fn show(app: &mut App) {
     if app.viewer.is_invalid() {
-        app.viewer = create_window();
+        app.viewer = create_window(app.cfg.strings().app_name);
     }
     if app.viewer.is_invalid() {
         return;
+    }
+    if list_of(app.viewer).is_invalid() {
+        create_list(app.viewer, app.cfg.strings());
+        resize_list(app.viewer);
     }
     fill(app);
     unsafe {
@@ -65,7 +75,7 @@ pub fn refresh(app: &mut App) {
     }
 }
 
-fn create_window() -> HWND {
+fn create_window(title: &str) -> HWND {
     unsafe {
         let controls = INITCOMMONCONTROLSEX {
             dwSize: size_of::<INITCOMMONCONTROLSEX>() as u32,
@@ -89,7 +99,6 @@ fn create_window() -> HWND {
         };
         RegisterClassW(&wc);
 
-        let title = with_app(|app| app.cfg.strings().app_name).unwrap_or("Who Stole My Focus");
         let x = (GetSystemMetrics(SM_CXSCREEN) - WIDTH) / 2;
         let y = (GetSystemMetrics(SM_CYSCREEN) - HEIGHT) / 2;
         let hwnd = CreateWindowExW(
@@ -121,15 +130,36 @@ fn create_window() -> HWND {
     }
 }
 
+/// Fills the window. The last column is told to use whatever is left: for the final
+/// column ListView reads LVSCW_AUTOSIZE_USEHEADER as "take the remaining width".
+fn resize_list(hwnd: HWND) {
+    let list = list_of(hwnd);
+    if list.is_invalid() {
+        return;
+    }
+    unsafe {
+        let mut rect = RECT::default();
+        let _ = GetClientRect(hwnd, &mut rect);
+        let _ = MoveWindow(list, 0, 0, rect.right, rect.bottom, true);
+        SendMessageW(
+            list,
+            LVM_SETCOLUMNWIDTH,
+            Some(WPARAM(COLUMNS - 1)),
+            Some(LPARAM(LVSCW_AUTOSIZE_USEHEADER as isize)),
+        );
+    }
+}
+
 fn list_of(hwnd: HWND) -> HWND {
     unsafe { GetDlgItem(Some(hwnd), ID_LIST).unwrap_or_default() }
 }
 
-fn create_list(parent: HWND) -> HWND {
+fn create_list(parent: HWND, s: &'static crate::i18n::Strings) -> HWND {
     unsafe {
         let instance = GetModuleHandleW(None).unwrap_or_default();
+        // No sunken border: it is a 1990s frame that looks wrong in either theme.
         let Ok(list) = CreateWindowExW(
-            WS_EX_CLIENTEDGE,
+            Default::default(),
             PCWSTR(wide("SysListView32").as_ptr()),
             PCWSTR::null(),
             WS_CHILD | WS_VISIBLE | WINDOW_STYLE(LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS),
@@ -154,9 +184,25 @@ fn create_list(parent: HWND) -> HWND {
             )),
         );
 
+        // An image list nothing draws into, purely to give the rows some height.
+        let spacer = ImageList_Create(1, ROW_HEIGHT, IMAGELIST_CREATION_FLAGS(0), 1, 0);
+        if !spacer.is_invalid() {
+            SendMessageW(
+                list,
+                LVM_SETIMAGELIST,
+                Some(WPARAM(LVSIL_SMALL as usize)),
+                Some(LPARAM(spacer.0 as isize)),
+            );
+        }
+
         let dark = system::dark_mode();
+        let header =
+            HWND(SendMessageW(list, LVM_GETHEADER, Some(WPARAM(0)), Some(LPARAM(0))).0 as *mut _);
         if dark {
             let _ = SetWindowTheme(list, PCWSTR(wide("DarkMode_Explorer").as_ptr()), None);
+            if !header.is_invalid() {
+                let _ = SetWindowTheme(header, PCWSTR(wide("DarkMode_ItemsView").as_ptr()), None);
+            }
             for (message, colour) in [
                 (LVM_SETBKCOLOR, DARK_BACKGROUND),
                 (LVM_SETTEXTBKCOLOR, DARK_BACKGROUND),
@@ -171,6 +217,9 @@ fn create_list(parent: HWND) -> HWND {
             }
         } else {
             let _ = SetWindowTheme(list, PCWSTR(wide("Explorer").as_ptr()), None);
+            if !header.is_invalid() {
+                let _ = SetWindowTheme(header, PCWSTR(wide("ItemsView").as_ptr()), None);
+            }
             SendMessageW(
                 list,
                 LVM_SETTEXTCOLOR,
@@ -188,7 +237,6 @@ fn create_list(parent: HWND) -> HWND {
             );
         }
 
-        let s = with_app(|app| app.cfg.strings()).unwrap_or(&crate::i18n::EN);
         for (index, (title, width)) in [
             (s.column_when, 130),
             (s.column_app, 200),
@@ -350,19 +398,9 @@ unsafe extern "system" fn viewer_proc(
     lparam: LPARAM,
 ) -> LRESULT {
     match message {
-        WM_CREATE => {
-            create_list(hwnd);
-            LRESULT(0)
-        }
+        WM_CREATE => LRESULT(0),
         WM_SIZE => {
-            let list = list_of(hwnd);
-            if !list.is_invalid() {
-                let mut rect = RECT::default();
-                unsafe {
-                    let _ = GetClientRect(hwnd, &mut rect);
-                    let _ = MoveWindow(list, 0, 0, rect.right, rect.bottom, true);
-                }
-            }
+            resize_list(hwnd);
             LRESULT(0)
         }
         WM_NOTIFY => {
