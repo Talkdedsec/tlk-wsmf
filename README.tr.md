@@ -40,6 +40,8 @@ bekler.
 **Hızlı bakış** tray ikonuna tek tıkla açılır: az önce ne olduğunu gösteren düz bir
 liste, fazlası yok. Win32 listesi olduğu için anında ekranda.
 
+![Hızlı bakış](assets/quick-view.tr.png)
+
 **Panel** (çift tık ya da "Paneli aç") ayrı bir process ve dört sekmesi var —
 etkinlik, kurallar, istatistik, ayarlar. Ayrı process olduğu için odağınızı koruyan
 kısım küçük kalır ve panel kapalıyken, meşgulken ya da çökmüş olsa bile çalışmaya

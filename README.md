@@ -38,6 +38,8 @@ way Windows does when it blocks a window itself. Nothing is lost. It just waits.
 **The quick view** opens on a single click of the tray icon: a plain list of what
 just happened, nothing else. It is a Win32 list, so it is on screen instantly.
 
+![The quick view](assets/quick-view.png)
+
 **The panel** (double click, or "Open the panel") is a separate process with four
 tabs — activity, rules, statistics, settings. Because it is its own process, the
 part of the program guarding your focus stays small and keeps running even if the

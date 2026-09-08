@@ -150,3 +150,79 @@ Capture "turkish" "activity" "panel-activity.tr.png"
 Capture "turkish" "stats"    "panel-stats.tr.png"
 Capture "turkish" "settings" "panel-settings.tr.png"
 Capture "turkish" "rules"    "panel-rules.tr.png"
+
+# The quick view lives in the guard process, and opens when a second copy is started.
+function CaptureQuickView([string]$language, [string]$file) {
+    $config = @"
+mode = "guard"
+language = "$language"
+typing_window_ms = 1500
+click_grace_ms = 400
+blocklist = ["mspaint.exe", "updater.exe"]
+allowlist = ["explorer.exe", "searchhost.exe", "wsmf.exe"]
+flash_thief = true
+max_restores = 3
+restore_window_secs = 10
+log_to_file = true
+record_everything = false
+start_with_windows = false
+foreground_lock_timeout_ms = 200000
+"@
+    Set-Content -Path (Join-Path $dataDir "config.toml") -Value $config -Encoding utf8
+
+    $previous = $env:APPDATA
+    $previousInstance = $env:WSMF_INSTANCE
+    $env:APPDATA = $sandbox
+    $env:WSMF_INSTANCE = "shots"
+    $guard = Start-Process $Exe -PassThru
+    Start-Sleep -Seconds 2
+
+    # A few entries to show, then a second launch to bring the quick view up.
+    foreach ($app in @("notepad", "mspaint")) {
+        Start-Process $app -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 1400
+        Stop-Process -Name $app -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 600
+    }
+    # A second launch is how the quick view is asked for; it exits straight after.
+    $waker = Start-Process $Exe -PassThru
+    Start-Sleep -Seconds 2
+    if (-not $waker.HasExited) { Stop-Process -Id $waker.Id -Force -ErrorAction SilentlyContinue }
+    $env:APPDATA = $previous
+    $env:WSMF_INSTANCE = $previousInstance
+
+    $hwnd = [Shot]::Biggest([uint32]$guard.Id)
+    if ($hwnd -eq [IntPtr]::Zero) {
+        Write-Output "  no quick view for $file (guard alive: $(-not $guard.HasExited))"
+        Stop-Process -Id $guard.Id -Force -ErrorAction SilentlyContinue
+        return
+    }
+    [Shot]::MoveWindow($hwnd, 60, 60, 1180, 620, $true) | Out-Null
+    [Shot]::SetForegroundWindow($hwnd) | Out-Null
+    Start-Sleep -Milliseconds 900
+
+    $rect = New-Object Shot+RECT
+    if ([Shot]::DwmGetWindowAttribute($hwnd, 9, [ref]$rect, 16) -ne 0) {
+        [Shot]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
+    }
+    $w = $rect.Right - $rect.Left
+    $h = $rect.Bottom - $rect.Top
+    $bmp = New-Object System.Drawing.Bitmap($w, $h)
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bmp.Size)
+    $g.Dispose()
+    $bmp.Save((Join-Path $OutDir $file), [System.Drawing.Imaging.ImageFormat]::Png)
+    $bmp.Dispose()
+    Stop-Process -Id $guard.Id -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 700
+    Write-Output "  $file  ${w}x${h}"
+}
+
+# A copy left behind from an earlier run holds the mutex and every guard started
+# after it exits immediately.
+Get-Process wsmf -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 500
+
+Write-Output "Quick view:"
+CaptureQuickView "english" "quick-view.png"
+CaptureQuickView "turkish" "quick-view.tr.png"
