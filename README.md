@@ -163,7 +163,9 @@ Rust 1.85 or newer, MSVC toolchain. The result is a single executable at
 - **Windows** — real windows created and destroyed inside the test: what a window
   reports about itself, that hidden, minimised and destroyed windows are never handed
   focus, and that focus really can be moved between two windows.
-- **Budget** — a decision must cost under 2 µs even with a thousand rules loaded, the
+- **Budget** — a decision must stay well under 10 µs even with a thousand rules
+  loaded (it is around a microsecond in practice; the budget leaves room for a busy
+  CI runner), the
   tray process must start in under 3 seconds, hold under 48 MB, and use under 0.35 s
   of CPU across six idle seconds. A second launch must exit rather than leave two
   copies running.

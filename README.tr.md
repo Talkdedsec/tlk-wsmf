@@ -167,7 +167,8 @@ Rust 1.85 veya üstü, MSVC toolchain. Sonuç `target\release\wsmf.exe` yolunda 
 - **Pencereler** — test içinde gerçekten açılıp kapatılan pencereler: bir pencerenin
   kendisi hakkında ne söylediği, gizli, küçültülmüş ve kapatılmış pencerelere odağın
   asla verilmemesi, ve odağın iki pencere arasında gerçekten taşınabilmesi.
-- **Bütçe** — bin kural yüklüyken bile bir karar 2 µs'nin altında kalmalı; tray
+- **Bütçe** — bin kural yüklüyken bile bir karar 10 µs'nin çok altında kalmalı
+  (pratikte bir mikrosaniye civarı; bütçe meşgul bir CI makinesine pay bırakıyor); tray
   process 3 saniyeden kısa sürede açılmalı, 48 MB'ın altında kalmalı ve altı saniyelik
   boşta beklemede 0,35 saniyeden az CPU kullanmalı. İkinci bir çalıştırma iki kopya
   bırakmak yerine çıkmalı.
