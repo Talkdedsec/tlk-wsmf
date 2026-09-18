@@ -61,7 +61,14 @@ pick one yourself.
 
 ## Install
 
-Download `wsmf.exe` from [Releases](https://github.com/Talkdedsec/tlk-wsmf/releases)
+With [scoop](https://scoop.sh):
+
+```powershell
+scoop bucket add tlk https://github.com/Talkdedsec/scoop-tlk
+scoop install tlk/wsmf
+```
+
+Otherwise download `wsmf.exe` from [Releases](https://github.com/Talkdedsec/tlk-wsmf/releases)
 and run it. One file, no installer, no runtime to install. It appears in the tray.
 
 To have it start with Windows, tick that in the tray menu. To remove it: quit, delete
