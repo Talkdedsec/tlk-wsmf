@@ -63,7 +63,14 @@ izler.
 
 ## Kurulum
 
-[Releases](https://github.com/Talkdedsec/tlk-wsmf/releases) sayfasından `wsmf.exe`
+[scoop](https://scoop.sh) ile:
+
+```powershell
+scoop bucket add tlk https://github.com/Talkdedsec/scoop-tlk
+scoop install tlk/wsmf
+```
+
+Diğer türlü [Releases](https://github.com/Talkdedsec/tlk-wsmf/releases) sayfasından `wsmf.exe`
 dosyasını indirip çalıştırın. Tek dosya, kurulum yok, ayrıca yüklenecek çalışma
 ortamı yok. Tray'de belirir.
 
