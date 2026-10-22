@@ -185,3 +185,7 @@ The budget tests are why the claim "small and light" is in this README at all.
 ## Licence
 
 MIT.
+
+<p align="center">
+  <sub>Built by <a href="https://talkdedsec.com">Talkdedsec</a></sub>
+</p>

@@ -188,3 +188,7 @@ Rust 1.85 veya üstü, MSVC toolchain. Sonuç `target\release\wsmf.exe` yolunda 
 ## Lisans
 
 MIT.
+
+<p align="center">
+  <sub><a href="https://talkdedsec.com">Talkdedsec</a> tarafından yapıldı</sub>
+</p>
