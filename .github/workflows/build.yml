@@ -50,6 +50,10 @@ jobs:
           test "$tag" = "$crate"
 
   audit:
+    permissions:
+      contents: read
+      checks: write
+      issues: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
