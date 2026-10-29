@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Who Stole My Focus — find the window that takes your keyboard</title>
+<meta name="description" content="A Windows tray program that names the application that took your keyboard focus, and can hand it back. No keyboard hook, no network, one Rust executable. English and Turkish.">
+<link rel="canonical" href="https://talkdedsec.github.io/tlk-wsmf/">
+<meta name="theme-color" content="#0e1014">
+<meta name="color-scheme" content="dark">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Who Stole My Focus">
+<meta property="og:description" content="Names the Windows application that steals your keyboard focus, and stops it. Tray program in Rust, no keyboard hook.">
+<meta property="og:url" content="https://talkdedsec.github.io/tlk-wsmf/">
+<meta property="og:image" content="https://talkdedsec.github.io/tlk-wsmf/og.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="img/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="site.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Who Stole My Focus","alternateName":"wsmf","applicationCategory":"UtilitiesApplication","operatingSystem":"Windows 10, Windows 11","license":"https://opensource.org/licenses/MIT","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"downloadUrl":"https://github.com/Talkdedsec/tlk-wsmf/releases/latest","author":{"@type":"Person","name":"Talkdedsec","url":"https://talkdedsec.com"}}
+</script>
+<script src="site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main" data-i18n="skip">Skip to content</a>
+
+<header class="top">
+  <a class="brand" href="#top"><img src="img/logo.png" width="22" height="22" alt="">wsmf</a>
+  <nav class="nav" aria-label="Sections">
+    <a href="#demo" data-i18n="nav.demo">Try it</a>
+    <a href="#decide" data-i18n="nav.decide">How it decides</a>
+    <a href="#windows" data-i18n="nav.windows">Windows</a>
+    <a href="#install" data-i18n="nav.install">Install</a>
+  </nav>
+  <div class="top-end">
+    <button class="lang" type="button" aria-label="Türkçe / English"><span data-l="en">EN</span><span data-l="tr">TR</span></button>
+    <a class="gh" href="https://github.com/Talkdedsec/tlk-wsmf" aria-label="Source on GitHub"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
+  </div>
+</header>
+
+<main id="main">
+<section class="hero" id="top">
+  <p class="over mono" data-i18n="hero.over">Windows 10 · 11 &nbsp;/&nbsp; tray program &nbsp;/&nbsp; Rust &nbsp;/&nbsp; MIT</p>
+  <h1 class="display" aria-label="Who stole my focus?" data-i18n-aria="hero.h1">
+    <span class="h1-ghost" aria-hidden="true">Who stole my focus?</span><span class="live" aria-hidden="true"><span class="typed">Who stole my focus?</span><span class="caret"></span></span>
+    <span class="thief" aria-hidden="true"><b>updater.exe</b><span class="thief-in"></span></span>
+  </h1>
+  <div class="hero-row">
+    <p class="lede" data-i18n-html="hero.lede">You are typing. A window you did not ask for jumps in front and eats the next few keystrokes. This tray program tells you <b>which application did that</b>, and, if you want, <b>stops it from doing it again</b>.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/Talkdedsec/tlk-wsmf/releases/latest/download/wsmf.exe">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="M12 3v12m0 0-5-5m5 5 5-5M4 20h16"/></svg>
+        <span data-i18n="cta.dl">Download wsmf.exe</span><small class="mono">5.8 MB</small>
+      </a>
+      <a class="btn ghost" href="#demo" data-i18n="cta.try">Watch it happen</a>
+    </div>
+  </div>
+</section>
+
+<section class="demo" id="demo" aria-labelledby="demo-h">
+  <div class="demo-head">
+    <p class="over mono" data-i18n="demo.over">01 — Try it</p>
+    <h2 class="h2" id="demo-h" data-i18n="demo.h">Type a sentence. Something will interrupt you.</h2>
+    <div class="modes" role="radiogroup" aria-label="Mode" data-i18n-aria="demo.mode">
+      <button role="radio" aria-checked="true" data-mode="watch" data-i18n="mode.watch">Watch only</button>
+      <button role="radio" aria-checked="false" data-mode="guard" data-i18n="mode.guard">Guard</button>
+      <button role="radio" aria-checked="false" data-mode="strict" data-i18n="mode.strict">Strict</button>
+    </div>
+    <p class="mode-note" aria-live="polite"></p>
+  </div>
+  <div class="rig">
+    <div class="desk">
+      <div class="win note" data-app="notepad.exe">
+        <div class="win-bar"><span>letter.txt — Notepad</span><i></i></div>
+        <textarea id="pad" spellcheck="false" placeholder="Start typing here…" data-i18n-ph="demo.ph" aria-label="Type here"></textarea>
+      </div>
+      <div class="win popup" hidden>
+        <div class="win-bar"><span class="pop-title"></span><button type="button" class="pop-x" aria-label="Close">×</button></div>
+        <p class="pop-body"></p>
+        <input class="pop-in" type="text" aria-label="The window that took focus" tabindex="-1" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="bar">
+        <span class="task on">Notepad</span>
+        <span class="task thief-task" hidden></span>
+        <span class="tray"><img src="img/logo.png" width="16" height="16" alt=""></span>
+      </div>
+    </div>
+    <aside class="quick" aria-label="Quick view" data-i18n-aria="demo.quick">
+      <div class="quick-stats">
+        <div><b id="s-int">0</b><span data-i18n="st.int">interruptions</span></div>
+        <div><b id="s-back">0</b><span data-i18n="st.back">taken back</span></div>
+        <div><b id="s-lost">0</b><span data-i18n="st.lost">keystrokes lost</span></div>
+      </div>
+      <ol class="log" aria-live="polite"><li class="empty" data-i18n="log.empty">Nothing has taken your focus yet.</li></ol>
+    </aside>
+  </div>
+</section>
+
+<section class="why">
+  <p class="over mono" data-i18n="why.over">02 — Why this exists</p>
+  <div class="why-grid">
+    <p class="big-num reveal"><span>200 000</span><i aria-hidden="true">→</i><span class="hot">0</span></p>
+    <div class="why-text reveal">
+      <p class="mono small">HKCU\Control Panel\Desktop\ForegroundLockTimeout</p>
+      <p data-i18n-html="why.p1">Windows already has a defence. The foreground lock timeout stops background applications from calling <code>SetForegroundWindow</code> at will. Plenty of installers quietly set it to <b>0</b>, and after that anything can interrupt anything.</p>
+      <p data-i18n="why.p2">The fix has been asked for in Microsoft’s own PowerToys repository since 2019. The registry key has no interface. The one tool most people find is abandoned or flagged by Defender.</p>
+    </div>
+  </div>
+</section>
+
+<section class="modes-sec">
+  <p class="over mono" data-i18n="m.over">03 — Three modes, from the tray or the panel</p>
+  <div class="mode-cards">
+    <article class="mc reveal"><span class="mc-k">A</span><h3 data-i18n="mode.watch">Watch only</h3><p data-i18n="m.watch">The default. Never touches your windows. Records every application that took your focus, when, and what its window was called. Start here.</p></article>
+    <article class="mc reveal"><span class="mc-k blue">B</span><h3 data-i18n="mode.guard">Guard</h3><p data-i18n="m.guard">Hands focus back if it was taken while you were typing, and always from applications on your block list.</p></article>
+    <article class="mc reveal"><span class="mc-k red">C</span><h3 data-i18n="mode.strict">Strict</h3><p data-i18n="m.strict">Hands focus back from everything that is not on your allow list.</p></article>
+  </div>
+  <p class="aside reveal" data-i18n="m.flash">When it takes focus back it flashes the interrupting window in the taskbar, the way Windows does when it blocks one itself. Nothing is lost. It just waits.</p>
+</section>
+
+<section class="decide" id="decide">
+  <div class="decide-head">
+    <p class="over mono" data-i18n="d.over">04 — How it decides</p>
+    <h2 class="h2" data-i18n-html="d.h">The benefit of the doubt <em>always goes to you.</em></h2>
+    <p class="body" data-i18n="d.p">A window coming to the front is usually you, clicking or pressing Alt+Tab. Getting that wrong is worse than the original problem.</p>
+  </div>
+  <ol class="ledger">
+    <li class="reveal"><span class="n mono">01</span><span data-i18n="d.1">You clicked in the last 400 ms</span><em class="v ok" data-i18n="v.ok">left alone</em></li>
+    <li class="reveal"><span class="n mono">02</span><span data-i18n="d.2">A mouse button is down right now</span><em class="v ok" data-i18n="v.ok">left alone</em></li>
+    <li class="reveal"><span class="n mono">03</span><span data-i18n="d.3">Alt+Tab or the Windows key is held</span><em class="v ok" data-i18n="v.ok">left alone</em></li>
+    <li class="reveal"><span class="n mono">04</span><span data-i18n="d.4">Same application as the window you were in</span><em class="v ok" data-i18n="v.ok">left alone</em></li>
+    <li class="reveal"><span class="n mono">05</span><span data-i18n="d.5">On your allow list</span><em class="v ok" data-i18n="v.ok">left alone</em></li>
+    <li class="reveal"><span class="n mono">06</span><span data-i18n="d.6">The window you were in has closed or been minimised</span><em class="v seen" data-i18n="v.seen">recorded, nowhere to go back to</em></li>
+    <li class="reveal"><span class="n mono">07</span><span data-i18n="d.7">A key was pressed in the last 1.5 s, and none of the above</span><em class="v theft" data-i18n="v.typing">you were typing: a theft</em></li>
+    <li class="reveal"><span class="n mono">08</span><span data-i18n="d.8">On your block list</span><em class="v theft" data-i18n="v.block">a theft, whatever you were doing</em></li>
+  </ol>
+  <div class="rules-foot">
+    <p class="reveal"><b class="mono">400 ms</b><span data-i18n="d.launch">An application opening puts up two or three windows in a few milliseconds. The first is answered, the rest are ignored, so a launch does not turn into a flicker.</span></p>
+    <p class="reveal"><b class="mono">3 / 10 s</b><span data-i18n="d.giveup">If an application keeps grabbing focus, it wins after three tries in ten seconds. Two programs fighting over the foreground is worse than one badly behaved program.</span></p>
+    <p class="reveal stamp"><b class="mono">✓ test</b><span data-i18n="d.tests">Every row above is a unit test. Turn on record_everything and the log tells you which row a decision matched.</span></p>
+  </div>
+</section>
+
+<section class="windows" id="windows">
+  <div class="windows-head">
+    <p class="over mono" data-i18n="w.over">05 — Two windows</p>
+    <h2 class="h2" data-i18n="w.h">One for a glance, one for everything.</h2>
+  </div>
+  <div class="bento">
+    <figure class="b-quick reveal"><img src="img/quick-view.png" data-tr="img/quick-view.tr.png" width="1159" height="667" loading="lazy" alt="The quick view: a list of what just took focus" data-i18n-alt="w.quick.alt"><figcaption data-i18n="w.quick">The quick view opens on one click of the tray icon. A Win32 list, so it is on screen instantly.</figcaption></figure>
+    <figure class="b-panel reveal"><img src="img/panel-activity.png" data-tr="img/panel-activity.tr.png" width="1252" height="839" loading="lazy" alt="The panel on the activity tab" data-i18n-alt="w.panel.alt"><figcaption data-i18n="w.panel">The panel is its own process with four tabs. If it is closed, busy or crashes, the part guarding your focus keeps running.</figcaption></figure>
+    <figure class="b-stats reveal"><img src="img/panel-stats.png" data-tr="img/panel-stats.tr.png" width="1252" height="989" loading="lazy" alt="The statistics tab" data-i18n-alt="w.stats.alt"><figcaption data-i18n="w.stats">Statistics: who interrupts you, and when.</figcaption></figure>
+    <figure class="b-rules reveal"><img src="img/panel-rules.png" data-tr="img/panel-rules.tr.png" width="1252" height="577" loading="lazy" alt="The rules tab with allow and block lists" data-i18n-alt="w.rules.alt"><figcaption data-i18n="w.rules">Rules: an allow list and a block list. English or Turkish, following the Windows display language.</figcaption></figure>
+  </div>
+</section>
+
+<section class="nots">
+  <p class="over mono" data-i18n="n.over">06 — What it does not do</p>
+  <ul class="not-list">
+    <li class="reveal"><s data-i18n="n.1h">Install a keyboard hook</s><span data-i18n="n.1">It asks the system how long since the last input and whether a mouse button is down. It never sees which key you pressed.</span></li>
+    <li class="reveal"><s data-i18n="n.2h">Touch the network</s><span data-i18n="n.2">Nothing leaves your machine.</span></li>
+    <li class="reveal"><s data-i18n="n.3h">Fight an elevated window</s><span data-i18n="n.3">Windows blocks that on purpose unless wsmf is elevated too. It is logged as “could not take it back”, not passed over in silence.</span></li>
+    <li class="reveal"><s data-i18n="n.4h">Stop a window from opening</s><span data-i18n="n.4">It decides where the keyboard goes, nothing more.</span></li>
+  </ul>
+</section>
+
+<section class="install" id="install">
+  <div class="inst-grid">
+    <div>
+      <p class="over mono" data-i18n="i.over">07 — Install</p>
+      <h2 class="h2" data-i18n-html="i.h">One file. <em>No installer.</em></h2>
+      <p class="body" data-i18n="i.p">It appears in the tray. Tick “start with Windows” in the tray menu if you want it there for good. To remove it: quit, delete the exe, and delete %APPDATA%\wsmf if you want the log and settings gone too.</p>
+    </div>
+    <div class="inst-steps">
+      <p class="mono lbl">scoop</p>
+      <pre class="code"><code>scoop bucket add tlk https://github.com/Talkdedsec/scoop-tlk
+scoop install tlk/wsmf</code><button class="copy" type="button" data-i18n="copy">Copy</button></pre>
+      <p class="mono lbl" data-i18n="i.or">or download</p>
+      <div class="dl-row">
+        <a href="https://github.com/Talkdedsec/tlk-wsmf/releases/latest/download/wsmf.exe"><b>wsmf.exe</b><span>Windows 10 · 11 · x64</span></a>
+        <a href="https://github.com/Talkdedsec/tlk-wsmf/releases/latest/download/wsmf.exe.sha256"><b>wsmf.exe.sha256</b><span data-i18n="i.sum">check the download</span></a>
+      </div>
+      <p class="av" data-i18n="i.av">Reading foreground changes and moving focus is also what some malware does, so a heuristic scanner may take an interest. Releases are built by GitHub Actions from the tag, and the whole program is about 4 800 lines of Rust you can read.</p>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <p class="foot-q" aria-hidden="true" data-i18n="foot.q">Your keyboard is yours.</p>
+  <div class="foot-row">
+    <nav aria-label="Project">
+      <a href="https://github.com/Talkdedsec/tlk-wsmf">GitHub</a>
+      <a href="https://github.com/Talkdedsec/tlk-wsmf/releases" data-i18n="foot.rel">Releases</a>
+      <a href="https://github.com/Talkdedsec/tlk-wsmf/blob/main/CHANGELOG.md" data-i18n="foot.log">Changelog</a>
+      <a href="https://github.com/Talkdedsec/tlk-wsmf/security/policy" data-i18n="foot.sec">Security</a>
+    </nav>
+    <p class="mono">MIT · © 2026 <a href="https://talkdedsec.com">Talkdedsec</a></p>
+  </div>
+</footer>
+</body>
+</html>
